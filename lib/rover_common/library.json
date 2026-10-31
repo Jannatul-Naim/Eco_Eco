@@ -1,0 +1,8 @@
+{
+  "name": "rover_common",
+  "version": "1.0.0",
+  "description": "Shared, hardware-free code for the URRT rover boards: inter-board line framing (CRC-8) and IPv4 validation.",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": { "srcDir": "src", "includeDir": "src" }
+}

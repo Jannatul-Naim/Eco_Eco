@@ -1,0 +1,14 @@
+{
+  "name": "quirc",
+  "version": "1.2.0",
+  "description": "Vendored copy of dlbeer/quirc v1.2 (ISC license, see LICENSE). Used only by the ESP32-CAM firmware.",
+  "license": "ISC",
+  "repository": { "type": "git", "url": "https://github.com/dlbeer/quirc.git" },
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "srcDir": "src",
+    "includeDir": "src",
+    "flags": ["-DQUIRC_FLOAT_TYPE=float", "-DQUIRC_USE_TGMATH=1", "-w"]
+  }
+}

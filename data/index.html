@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Eco eco Rover</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="team">ECO ECO</span>
+    <span class="sub">URRT rover</span>
+  </div>
+  <div id="strip" class="strip" title="Rover state and the reason for it">
+    <span id="stateBig" class="state-big">—</span>
+    <span id="missionChip" class="chip">mission —</span>
+    <span id="stateDetail" class="strip-detail">waiting for telemetry…</span>
+  </div>
+  <div class="pills">
+    <span id="linkPill" class="pill bad" title="WebSocket link and median telemetry interval (last 60 s)">offline</span>
+    <span id="modePill" class="pill" title="Current mode">mode —</span>
+  </div>
+  <button id="estopBtn" class="estop" type="button" title="Software E-stop (Space / Esc / gamepad B-Circle). The red mushroom E-stop on the rover is the real one.">E-STOP</button>
+</header>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<main class="layout">
+
+<!-- ======================================================= LEFT: control, power, connection -->
+<div class="col col-left">
+
+  <section class="card">
+    <h2>Control</h2>
+    <dl class="grid">
+      <div><dt>Mode</dt><dd id="modeVal">—</dd></div>
+      <div><dt>Controls</dt><dd id="controlsVal">—</dd></div>
+      <div class="wide"><dt>Mode changed</dt><dd id="modeChanged">—</dd></div>
+      <div class="wide"><dt>State changed</dt><dd id="stateChanged">—</dd></div>
+    </dl>
+    <div class="btn-row">
+      <button class="btn" data-mode="idle" type="button">IDLE</button>
+      <button class="btn" data-mode="teleop" type="button">TELEOP</button>
+    </div>
+    <div class="seg" id="missionSeg" role="radiogroup" aria-label="Autonomous mission">
+      <button type="button" class="seg-btn" data-mission="traverse" role="radio">Traverse</button>
+      <button type="button" class="seg-btn" data-mission="proximity" role="radio">Proximity</button>
+      <button type="button" class="seg-btn" data-mission="qr_ping" role="radio">QR + ping</button>
+      <button type="button" class="seg-btn" data-mission="motion" role="radio">Motion 5 s</button>
+    </div>
+    <div class="btn-row three">
+      <button id="armAutoBtn" class="btn gold" type="button" title="Declare autonomy to the referee first. Locks all operator controls.">ARM AUTO</button>
+      <button id="startBtn" class="btn go" type="button">START</button>
+      <button id="abortBtn" class="btn warn" type="button" title="The task is then scored as teleop (×1)">ABORT</button>
+    </div>
+    <div class="btn-row">
+      <button id="resetEstopBtn" class="btn" type="button">RESET E-STOP</button>
+      <button id="ackBtn" class="btn" type="button">ACK FAULT</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Power &amp; E-stop</h2>
+    <dl class="grid">
+      <div><dt>E-stop</dt><dd id="esActive">—</dd></div>
+      <div><dt>Source</dt><dd id="esSource">—</dd></div>
+      <div><dt>Button</dt><dd id="esHw">—</dd></div>
+      <div><dt>Outputs</dt><dd id="armed">—</dd></div>
+      <div><dt>Battery</dt><dd id="batt">—</dd></div>
+      <div><dt>Motor bus</dt><dd id="bus">—</dd></div>
+      <div><dt>Driver</dt><dd id="driver">—</dd></div>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Connection</h2>
+    <div class="host-row">
+      <input id="hostInput" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="rover IP, e.g. 192.168.4.1" aria-label="Rover address">
+      <button id="hostBtn" class="btn small" type="button">CONNECT</button>
+    </div>
+    <dl class="grid">
+      <div><dt>Wi-Fi</dt><dd id="wifi">—</dd></div>
+      <div><dt>RSSI</dt><dd id="rssi">—</dd></div>
+      <div class="wide"><dt>Rover</dt><dd id="ip" class="mono">—</dd></div>
+      <div><dt>Telemetry</dt><dd id="pollMedian">—</dd></div>
+      <div><dt>Round trip</dt><dd id="rtt">—</dd></div>
+      <div><dt>Uptime</dt><dd id="uptime">—</dd></div>
+      <div><dt>Viewers</dt><dd id="wsClients">—</dd></div>
+      <div><dt>Firmware</dt><dd id="fw">—</dd></div>
+      <div><dt>Heap</dt><dd id="heap">—</dd></div>
+      <div class="wide"><dt>Pin map</dt><dd id="pinmap">—</dd></div>
+    </dl>
+    <p class="hint">API: <a id="apiStatus" href="/api/status" target="_blank">/api/status</a> · <a id="apiSensors" href="/api/sensors" target="_blank">/api/sensors</a> · <a id="apiEvents" href="/api/events" target="_blank">/api/events</a></p>
+  </section>
+</div>
+
+<!-- ======================================================= CENTER: camera + drive -->
+<div class="col col-center">
+
+  <section class="card cam-card">
+    <div class="cam">
+      <img id="camImg" alt="Live camera stream">
+      <div id="camOverlay" class="cam-overlay">no stream</div>
+      <span id="camFps" class="cam-fps">— fps</span>
+      <span id="camLink" class="cam-link">—</span>
+    </div>
+    <div class="pan-row">
+      <button id="panLeftBtn" class="btn small" type="button" title="Pan 10° left">◀</button>
+      <input id="panSlider" type="range" min="45" max="135" step="1" value="90" aria-label="Camera pan angle">
+      <button id="panRightBtn" class="btn small" type="button" title="Pan 10° right">▶</button>
+      <button id="panCenterBtn" class="btn small" type="button">CENTER</button>
+      <output id="panOut">90°</output>
+    </div>
+    <dl class="grid cam-meta">
+      <div><dt>Pan</dt><dd><span id="panState">—</span> · <span id="panAngle">—</span></dd></div>
+      <div><dt>Sensor</dt><dd id="camSensor">—</dd></div>
+      <div><dt>Cam IP</dt><dd id="camIp">—</dd></div>
+      <div class="hidden"><dt>Heartbeat</dt><dd id="camAge">—</dd></div>
+    </dl>
+  </section>
+
+  <section class="card drive-card" id="driveCard">
+    <h2>Drive <span class="tag" id="driveLock">locked</span></h2>
+    <div class="drive">
+      <div class="pad" id="pad">
+        <button type="button" class="pad-btn" data-v="1,0.5">↖</button>
+        <button type="button" class="pad-btn" data-v="1,0">▲</button>
+        <button type="button" class="pad-btn" data-v="1,-0.5">↗</button>
+        <button type="button" class="pad-btn" data-v="0,1">◀</button>
+        <button type="button" class="pad-btn stop" data-v="0,0">■</button>
+        <button type="button" class="pad-btn" data-v="0,-1">▶</button>
+        <button type="button" class="pad-btn" data-v="-1,-0.5">↙</button>
+        <button type="button" class="pad-btn" data-v="-1,0">▼</button>
+        <button type="button" class="pad-btn" data-v="-1,0.5">↘</button>
+      </div>
+
+      <div class="drive-mid">
+        <div class="bars">
+          <div class="bar-row"><span>Cmd L</span><div class="bar"><i id="cmdL"></i></div><output id="cmdLv">0.00</output></div>
+          <div class="bar-row"><span>Cmd R</span><div class="bar"><i id="cmdR"></i></div><output id="cmdRv">0.00</output></div>
+          <div class="bar-row"><span>Out L</span><div class="bar"><i id="outL"></i></div><output id="outLv">0.00</output></div>
+          <div class="bar-row"><span>Out R</span><div class="bar"><i id="outR"></i></div><output id="outRv">0.00</output></div>
+        </div>
+        <label class="slider" title="Hold the pad or W A S D / arrow keys; release stops. The firmware also stops after 300 ms without commands.">Max command <output id="speedOut">50 %</output>
+          <input id="speed" type="range" min="10" max="100" step="5" value="50">
+        </label>
+        <label class="slider">Gamepad deadzone <output id="dzOut">0.12</output>
+          <input id="deadzone" type="range" min="0.05" max="0.30" step="0.01" value="0.12">
+        </label>
+        <p class="hint">Firmware cap <span id="teleopMax">—</span> · hold pad or W A S D</p>
+      </div>
+
+      <div class="drive-gp">
+        <dl class="grid">
+          <div class="wide"><dt>Gamepad</dt><dd id="gpName" class="ellipsis">none, press a button on it</dd></div>
+          <div><dt>Map</dt><dd id="gpMapping">—</dd></div>
+          <div><dt>RT/R2</dt><dd id="gpDeadman">—</dd></div>
+          <div class="wide"><dt>State</dt><dd id="gpState">disarmed</dd></div>
+        </dl>
+        <div class="btn-row">
+          <button id="gpEnableBtn" class="btn gold small" type="button">ENABLE</button>
+          <button id="gpDisableBtn" class="btn small" type="button">DISARM</button>
+        </div>
+        <div class="seg two" id="gpModeSeg" role="radiogroup" aria-label="Gamepad steering">
+          <button type="button" class="seg-btn on" data-gpmode="arcade" role="radio">Left stick</button>
+          <button type="button" class="seg-btn" data-gpmode="tank" role="radio">Tank</button>
+        </div>
+        <details class="help">
+          <summary>Gamepad help</summary>
+          <p>TELEOP → ENABLE → hold RT/R2 to drive. Releasing it stops the rover. Disconnecting the controller, leaving this tab, a fault or AUTO disarms it, and you press ENABLE again. B/Circle = software E-stop. The browser must report the <em>standard</em> layout (most Xbox and PlayStation pads over USB in Chrome or Edge). Keep this tab focused.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ======================================================= RIGHT: sensors + events -->
+<div class="col col-right">
+
+  <section class="card">
+    <h2>Sonar</h2>
+    <div class="tiles" id="sonarTiles"></div>
+    <dl class="grid">
+      <div><dt>Front</dt><dd id="proxFront">—</dd></div>
+      <div><dt>100 ± 20</dt><dd id="proxWindow">—</dd></div>
+      <div class="wide"><dt>Reverse</dt><dd id="revAllowed">—</dd></div>
+      <div class="wide"><dt>Updated</dt><dd id="proxT">—</dd></div>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>QR &amp; ping</h2>
+    <dl class="grid">
+      <div class="wide"><dt>Text</dt><dd id="qrText" class="mono">—</dd></div>
+      <div><dt>IPv4</dt><dd id="qrIp" class="mono">—</dd></div>
+      <div><dt>Result</dt><dd id="qrValid">—</dd></div>
+      <div class="wide"><dt>Decoded</dt><dd id="qrT">—</dd></div>
+      <div><dt>Last valid</dt><dd id="qrLast" class="mono">—</dd></div>
+      <div><dt>Scanner</dt><dd id="qrArmed">—</dd></div>
+      <div><dt>Ping</dt><dd id="pingState">—</dd></div>
+      <div><dt>Target</dt><dd id="pingTarget" class="mono">—</dd></div>
+      <div><dt>Sent / rx</dt><dd id="pingCount">—</dd></div>
+      <div><dt>RTT</dt><dd id="pingRtt">—</dd></div>
+      <div class="wide"><dt>Ping time</dt><dd id="pingT">—</dd></div>
+    </dl>
+    <div class="btn-row"><button id="qrBtn" class="btn gold small" type="button" title="Teleop: decode one QR and ping it from the rover. Only the referee's server log counts as proof.">SCAN QR + PING</button></div>
+  </section>
+
+  <section class="card">
+    <h2>Motion</h2>
+    <div class="track">
+      <div class="track-field"><i id="motDot"></i></div>
+      <div class="progress"><i id="motProg"></i><span id="motProgTxt">0.0 / 5.0 s</span></div>
+    </div>
+    <dl class="grid">
+      <div><dt>Detector</dt><dd id="motEnabled">—</dd></div>
+      <div><dt>Target</dt><dd id="motDetected">—</dd></div>
+      <div><dt>Tracking</dt><dd id="motTracking">—</dd></div>
+      <div><dt>Area</dt><dd id="motArea">—</dd></div>
+      <div class="wide"><dt>Updated</dt><dd id="motT">—</dd></div>
+    </dl>
+    <div class="btn-row">
+      <button id="motOnBtn" class="btn small" type="button">DETECT ON</button>
+      <button id="motOffBtn" class="btn small" type="button">DETECT OFF</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Audio <span class="tag">optional</span></h2>
+    <dl class="grid">
+      <div><dt>Board</dt><dd id="auOnline">—</dd></div>
+      <div><dt>Speaker</dt><dd id="auSpk">—</dd></div>
+      <div><dt>Mic</dt><dd><div class="meter"><i id="auLevel"></i></div></dd></div>
+      <div><dt>Clients</dt><dd id="auClients">—</dd></div>
+      <div class="wide"><dt>Updated</dt><dd id="auT">—</dd></div>
+    </dl>
+    <div class="btn-row">
+      <button id="listenBtn" class="btn small" type="button">LISTEN</button>
+      <button id="talkBtn" class="btn gold small" type="button">HOLD TO TALK</button>
+    </div>
+    <p id="auNote" class="hint">Talking needs the dashboard opened from <code>http://localhost</code> (docs/04_dashboard.md).</p>
+  </section>
+
+  <section class="card events-card">
+    <h2>Events</h2>
+    <ol id="events" class="events"></ol>
+  </section>
+</div>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
