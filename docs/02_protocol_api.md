@@ -30,7 +30,7 @@ does.
 | POST | `/api/mission/start` | `{}` | from AUTO_READY / COMPLETE / FAILED |
 | POST | `/api/mission/abort` | `{}` | AUTO_RUNNING → AUTO_FAILED. Rulebook: the task is then scored as teleop |
 | POST | `/api/fault/ack` | `{}` | SAFE_STOP → IDLE |
-| POST | `/api/servo` | `{"angle":deg}` or `{"pulse_us":us}` | angle is clamped to the soft range and rejected in AUTO; raw pulse only in IDLE (calibration) |
+| POST | `/api/servo` | `{"angle":deg}` or `{"pulse_us":us}` | the servo is on the ESP32-CAM: needs the camera link. Angle is clamped to 45–135° and rejected in AUTO; raw pulse only in IDLE (calibration) |
 | POST | `/api/task/qr_ping` | `{}` | TELEOP: decode one QR and ping it from the rover (×1 scoring) |
 | POST | `/api/motion_detect` | `{"enabled":true\|false}` | TELEOP: run the camera motion detector |
 | GET | `/api/events` | — | last 32 events, oldest first |
@@ -68,8 +68,8 @@ divider is not fitted.
   "proximity": {"target_mm": 100, "tol_mm": 20, "front_mm": 310, "in_window": false, "t_ms": 125380},
   "camera": {"link": "ok", "ip": "10.0.0.21", "stream_url": "http://10.0.0.21:81/stream", "fps": 11.8,
              "sensor": "GC2145", "pid": "0x2145", "hb_age_ms": 120, "t_ms": 125280, "rx_ok": 5000, "rx_bad": 2},
-  "pan": {"present": true, "state": "settled", "angle": 90, "target": 90, "pulse_us": 1450,
-          "soft_min": 45, "soft_max": 135, "t_ms": 125400},
+  "pan": {"present": true, "mode": "goto", "state": "settled", "angle": 90, "target": 90,
+          "pulse_us": 1450, "tracking": false, "soft_min": 45, "soft_max": 135, "t_ms": 125400},
   "qr": {"requested": false, "camera_armed": false, "text": "Ping server: 10.0.0.5", "ip": "10.0.0.5",
          "valid": true, "error": "", "t_ms": 120000, "last_valid_ip": "10.0.0.5", "last_valid_t_ms": 120000},
   "ping": {"state": "reply", "target": "10.0.0.5", "sent": 1, "received": 1, "rtt_ms": 14, "error": "", "t_ms": 120400},
@@ -110,28 +110,34 @@ dashboard shows under Connection.
 - One message per line: `<json>*<CRC-8 as 2 hex digits>\n`. CRC-8 uses polynomial 0x07, init
   0x00, over the JSON bytes only. Maximum line length is 240 bytes; longer lines are discarded
   whole (`boardlink::LineAssembler`).
-- Every object has `"v": 1` (protocol version) and `"t"` (type). A version mismatch is logged
+- Every object has `"v": 2` (protocol version; 2 since the pan servo moved to the camera) and `"t"` (type). A version mismatch is logged
   once and the message is ignored.
 - **There is no message type that carries a motor or drive command.** Unknown types are
-  counted as `rx_bad` and dropped.
+  counted as `rx_bad` and dropped. `cfg` carries only the pan mode for the camera's own pan servo.
 
 | Dir | `t` | Fields | Rate |
 |---|---|---|---|
-| CAM→S3 | `hb` | `s` seq, `up` uptime ms, `ip`, `sen` sensor name, `pid`, `fps`, `qr`/`mot` detectors armed (0/1), `cam` camera OK, `rst` reset reason | 5 Hz |
+| CAM→S3 | `hb` | `s` seq, `up` uptime ms, `ip`, `sen` sensor name, `pid`, `fps`, `qr`/`mot` detectors armed (0/1), `cam` camera OK, `pm` pan mode applied, `pan` (`absent`/`moving`/`settled`), `ang` angle, `tgt` target, `pul` pulse µs, `trk` (1 = following a motion target) | 5 Hz |
 | CAM→S3 | `qr` | `s`, `ok` (0/1), `ip` (valid IPv4 or ""), `txt` (≤ 48 printable chars, `"` and `\` replaced by `?`), `err` (`not_ipv4`, `not_unicast`, `no_ipv4`, `ambiguous`) | per decoded code; the same text is repeated at most once per second |
-| CAM→S3 | `mot` | `s`, `det` (0/1), `cx`,`cy` (−1..1, image centre = 0), `a` changed-area fraction, `ep` pan epoch of the baseline, `base` (1 = a new baseline was taken) | per processed frame while armed |
-| S3→CAM | `cfg` | `s`, `qr` (0/1), `mot` (0/1), `pan` (`absent`/`moving`/`settled`), `ang`, `ep` pan epoch | on change, else every 200 ms |
+| CAM→S3 | `mot` | `s`, `det` (0/1), `cx`,`cy` (−1..1, image centre = 0), `a` changed-area fraction, `ep` the camera's pan epoch of the baseline, `base` (1 = a new baseline was taken) | per processed frame while armed |
+| S3→CAM | `cfg` | `s`, `qr` (0/1), `mot` (0/1), `pm` pan mode (`hold`/`goto`/`scan`/`track`/`pulse`; unknown = `hold`), `ang` goto angle, `pul` raw pulse µs | on change, else every 200 ms |
 
-Example line: `{"v":1,"t":"cfg","s":12,"qr":1,"mot":0,"pan":"settled","ang":90.0,"ep":3}*28`
+Example line: `{"v":2,"t":"cfg","s":12,"qr":1,"mot":0,"pm":"scan","ang":90.0,"pul":0}*6D`
 
-If the S3 stops sending `cfg` for 1.5 s, the camera turns both detectors off.
+If the S3 stops sending `cfg` for 1.5 s, the camera turns both detectors off and holds the pan.
+
+Pan modes the S3 chooses: `hold` in E-stop, safe stop and missions that do not use the pan;
+`scan` while the AUTO `qr_ping` mission searches; `track` during the AUTO `motion` mission (the
+camera recentres on the target itself and sweeps while it sees none); `pulse` for calibration in
+IDLE; otherwise `goto` the operator's angle.
 
 ## 2.4 ESP32-CAM HTTP
 
 | Port | Path | Content |
 |---|---|---|
-| 80 | `/` | small status page |
-| 80 | `/status` | JSON: sensor, PID, fps, frames, link config, QR and motion counters, heap/PSRAM |
+| 80 | `/` | **bench page**: stream, QR / motion / pan controls and live results, for testing the camera without the S3 |
+| 80 | `POST /bench?qr=0\|1&mot=0\|1&pm=hold\|goto\|scan\|track&ang=deg` | bench settings. Used only while the S3 is silent, and dropped 3 s after the page stops refreshing them (it refreshes every second) |
+| 80 | `/status` | JSON: sensor, PID, fps, frames, link config (`source`: `s3` / `bench` / `none`), last QR (`last_text`, `last_ip`, `last_err`, `age_ms`), pan servo (mode, state, angle, pulse, tracking), QR and motion counters, heap/PSRAM |
 | 80 | `/gray.jpg` | the luma image the QR decoder sees (use it to check focus and byte order) |
 | 81 | `/stream` | `multipart/x-mixed-replace` MJPEG, ≤ 12 fps, one viewer at a time |
 

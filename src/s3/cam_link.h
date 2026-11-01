@@ -1,5 +1,6 @@
-// UART link to the ESP32-CAM. Receives observations (heartbeat, QR, motion)
-// and sends the camera configuration (which detectors run, pan state).
+// UART link to the ESP32-CAM. Receives observations (heartbeat with the pan
+// status, QR, motion) and sends the camera configuration (which detectors
+// run, which pan mode the camera's own servo follows).
 //
 // SAFETY: received messages can only update the CamState struct below.
 // Nothing in this module can reach the motor outputs.
@@ -21,6 +22,13 @@ struct CamState {
   uint32_t camUptimeMs = 0;
   bool qrArmed = false;        // as reported by the camera
   bool motArmed = false;
+  // Pan servo on the camera, as reported in its heartbeat.
+  PanMode panMode = PanMode::Hold;
+  PanState panState = PanState::Absent;
+  float panDeg = 0.0f;
+  float panTarget = 0.0f;
+  float panPulseUs = 0.0f;
+  bool panTracking = false;
   uint32_t rxOk = 0;
   uint32_t rxBad = 0;
   uint32_t versionMismatch = 0;
@@ -44,9 +52,9 @@ struct CamState {
 struct CamRequest {
   bool qr = false;
   bool motion = false;
-  PanState pan = PanState::Absent;
-  float panDeg = 0.0f;
-  uint32_t panEpoch = 0;
+  PanMode panMode = PanMode::Hold;
+  float panDeg = boardlink::kPanHomeDeg;  // Goto
+  float pulseUs = 0.0f;                   // Pulse
 };
 
 class CamLink {
@@ -67,4 +75,5 @@ class CamLink {
   CamRequest lastSent_;
   uint32_t lastSendMs_ = 0;
   uint32_t txSeq_ = 0;
+  bool linkUp_ = false;  // for the up/lost events
 };

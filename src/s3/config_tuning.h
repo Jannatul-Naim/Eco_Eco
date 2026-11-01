@@ -49,20 +49,9 @@ constexpr float PROX_GAIN_PER_MM = 0.0015f;  // duty per mm of error
 constexpr uint8_t PROX_STABLE_READINGS = 5;  // consecutive in-window readings while stopped
 constexpr uint32_t PROX_TIMEOUT_MS = 20000;
 
-// ---- Camera pan (SG90 via PCA9685) ---------------------------------------------
-// Calibrate in small steps (docs/06 stage 6). Start with a narrow soft range.
-constexpr float SERVO_US_AT_0_DEG = 500.0f;     // nominal SG90; VERIFY
-constexpr float SERVO_US_AT_180_DEG = 2400.0f;  // nominal SG90; VERIFY
-constexpr float SERVO_SOFT_MIN_DEG = 45.0f;     // widen only after checking the cable/bracket
-constexpr float SERVO_SOFT_MAX_DEG = 135.0f;
-constexpr float SERVO_HOME_DEG = 90.0f;
-constexpr float SERVO_MAX_DEG_PER_S = 120.0f;
-constexpr uint32_t SERVO_SETTLE_MS = 350;       // no position feedback: time-based settle
-constexpr float SERVO_CAL_MIN_US = 500.0f;      // raw-pulse calibration hard limits
-constexpr float SERVO_CAL_MAX_US = 2500.0f;
-// Scan positions used while searching for a QR code or a moving target.
-constexpr float PAN_SCAN_DEG[] = {90.0f, 65.0f, 45.0f, 65.0f, 90.0f, 115.0f, 135.0f, 115.0f};
-constexpr uint32_t PAN_SCAN_DWELL_MS = 1500;    // time at each position after settling
+// Camera pan: the servo, its scan positions and target following live on the
+// ESP32-CAM (src/cam/config_cam.h); the shared angle limits are in
+// lib/rover_common/src/rover_protocol.h.
 
 // ---- Camera link ------------------------------------------------------------
 constexpr uint32_t CAM_LINK_STALE_MS = 1000;
@@ -76,12 +65,9 @@ constexpr uint32_t PING_TIMEOUT_MS = 1500;
 // ---- Autonomous: motion tracking ----------------------------------------------
 constexpr uint32_t MOTION_GOAL_MS = 5000;     // rulebook: track for 5 s
 // Longest gap between detections still counted as continuous. Must exceed one
-// recentring move: slew + SERVO_SETTLE_MS + ~2 camera frames.
+// recentring move on the camera: slew + settle + ~2 frames (see
+// PAN_TRACK_LOST_MS in src/cam/config_cam.h).
 constexpr uint32_t MOTION_MAX_GAP_MS = 1000;
-constexpr float MOTION_RECENTER_CX = 0.45f;   // |cx| beyond this -> nudge the pan toward target
-constexpr float MOTION_RECENTER_STEP_DEG = 10.0f;
-// +1: increasing servo angle turns the camera toward image-right. VERIFY in stage 7.
-constexpr float MOTION_PAN_DIRECTION = 1.0f;
 constexpr uint32_t MOTION_TIMEOUT_MS = 60000;
 
 // ---- Telemetry / events --------------------------------------------------------

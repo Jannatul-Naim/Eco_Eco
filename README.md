@@ -12,8 +12,8 @@ electrical handoff the build needs.
 
 | Board | Folder | Job | Motor authority |
 |---|---|---|---|
-| ESP32-S3 (main) | `src/s3/` | drive, E-stop latch, 4× sonar, missions, dashboard + API, on-board ICMP ping, camera pan (PCA9685) | **the only one** |
-| ESP32-CAM | `src/cam/` | MJPEG stream, QR decode + IPv4 check, motion detection | none (observations only) |
+| ESP32-S3 (main) | `src/s3/` | drive, E-stop latch, 4× sonar, missions, dashboard + API, on-board ICMP ping; picks the camera's pan mode | **the only one** |
+| ESP32-CAM | `src/cam/` | MJPEG stream, QR decode + IPv4 check, motion detection, MG996R camera pan (scan + target following) | none (observations + its own pan servo) |
 | ESP32 DevKit (optional) | `src/audio/` | two-way audio relay (INMP441 mic, MAX98357A speaker) | none (status heartbeat only) |
 | Operator laptop | `data/` (served by the S3) | dashboard, gamepad teleop | rejected while AUTO is active |
 
@@ -27,7 +27,7 @@ Shared code lives in `lib/rover_common/` (UART framing with CRC-8, strict IPv4 v
 | Teleop and autonomous modes, controls locked in AUTO | `src/s3/rover.cpp` `setMode`, `drive` | compiled |
 | QR decode → ping from the rover's own computer (×4 in AUTO) | cam `vision.cpp` + S3 `runQrPing`, `pinger.cpp` | compiled |
 | Sonar proximity stop at 100 ± 20 mm | S3 `runProximity` | compiled |
-| Motion tracking for 5 s | cam `runMotion` + S3 `runMotion` with pan scan | compiled |
+| Motion tracking for 5 s | cam `runMotion` + `pan.cpp` (sweep, recentre) + S3 `runMotion` (5 s timer) | compiled |
 | Continuous traverse | S3 `runTraverse` | compiled; **can only end as FAILED**: no encoders or lane-end sensor fitted |
 | Two-way audio (teleop only) | `src/audio/` + dashboard Audio panel | compiled, optional hardware |
 | Colour and shape detection | — | **out of scope by team decision** (it is worth ×4 if added later) |
@@ -70,7 +70,7 @@ Uploading, the dashboard file system and serial monitoring are covered step by s
 2. [Protocols and API](docs/02_protocol_api.md): HTTP/WebSocket API, inter-board UART, audio
 3. [Electrical handoff](docs/03_electrical.md): BOM, power plan, E-stop circuit, wiring
 4. [Dashboard](docs/04_dashboard.md): using it, gamepad, audio, serving it locally
-5. [Pin maps](docs/05_pin_maps.md): every GPIO and I²C address, per board
+5. [Pin maps](docs/05_pin_maps.md): every GPIO, per board
 6. [Bring-up guide](docs/06_bringup_guide.md): staged commissioning with exact commands
 7. [Test checklist](docs/07_test_checklist.md): ordered pass/fail sheet
 8. [Status and assumptions](docs/08_status.md): what is compiled, tested and still unknown

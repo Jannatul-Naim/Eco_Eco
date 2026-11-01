@@ -1,7 +1,7 @@
 # 5. Pin maps
 
-> **PROVISIONAL.** No board identity is confirmed. Before wiring a board, compare its header
-> silkscreen with the table. If a pin label differs, or a pin listed here does not exist on your
+> **PROVISIONAL.** The S3 header was checked against the team's photo (1 Nov 2026); no pin has
+> been tested with wiring yet. Before wiring a board, compare its header silkscreen with the table. If a pin label differs, or a pin listed here does not exist on your
 > header, **stop**. Send a photo of both sides of the board and the header labels, and update
 > the config file before you wire anything.
 
@@ -10,8 +10,10 @@ Change the code and this page together.
 
 ## 5.1 ESP32-S3 main controller
 
-Board reported as "ESP32 23 2022 V1.3". The map assumes an **ESP32-S3-DevKitC-1-compatible**
-header (possibly a VCC-GND "YD-ESP32-S3", silkscreen "YD-ESP32-23 2022-V1.3"; **unconfirmed**).
+Board reported as "ESP32 23 2022 V1.3". The team's photo (1 Nov 2026) shows an **ESP32-S3-N16R8**
+module on a two-USB-C board with an RGB LED, whose header labels match the
+**ESP32-S3-DevKitC-1** layout. Every GPIO in this table is on the header, including 41/42 for the
+camera link.
 
 | GPIO | Function | Direction | Connects to | Notes |
 |---|---|---|---|---|
@@ -21,8 +23,6 @@ header (possibly a VCC-GND "YD-ESP32-S3", silkscreen "YD-ESP32-23 2022-V1.3"; **
 | 5 | `PIN_LEFT_B` | out | MD30C left **DIR** / BTS7960 left LPWM | 10 kΩ to GND |
 | 6 | `PIN_RIGHT_A` | out PWM | MD30C right **PWM** / BTS7960 right RPWM | 10 kΩ to GND |
 | 7 | `PIN_RIGHT_B` | out | MD30C right **DIR** / BTS7960 right LPWM | 10 kΩ to GND |
-| 8 | `PIN_I2C_SDA` | I²C | PCA9685 SDA | pull-up on the PCA9685 board (to its 3.3 V VCC) |
-| 9 | `PIN_I2C_SCL` | I²C | PCA9685 SCL | |
 | 10 | sonar 0 TRIG | out | front_center Trig | |
 | 11 | sonar 0 ECHO | in | front_center Echo via 1 k / 1.8 k | |
 | 12 | sonar 1 TRIG | out | front_left Trig | |
@@ -35,8 +35,7 @@ header (possibly a VCC-GND "YD-ESP32-S3", silkscreen "YD-ESP32-23 2022-V1.3"; **
 | 21 | `PIN_ESTOP_SENSE` | in, pull-up | E-stop NC contact #2 → GND | LOW = released, HIGH/open = pressed |
 | 41 | `PIN_CAM_UART_TX` | out | ESP32-CAM GPIO13 (RX) | 115200 8N1 |
 | 42 | `PIN_CAM_UART_RX` | in | ESP32-CAM GPIO14 (TX) | |
-| 39, 40 | spare | — | — | believed safe on DevKitC-1-style boards |
-| 3V3 | — | — | PCA9685 VCC | |
+| 8, 9, 39, 40 | spare | — | — | believed safe on DevKitC-1-style boards (8/9 were the PCA9685 I²C pins) |
 | 5V / VIN | — | — | logic 5 V buck | |
 
 Pins avoided on purpose: 0, 3, 45, 46 (strapping) · 19, 20 (USB) · 26–32 (flash) · 33–37
@@ -44,26 +43,23 @@ Pins avoided on purpose: 0, 3, 45, 46 (strapping) · 19, 20 (USB) · 26–32 (fl
 serial monitor) · 47.
 
 Which USB port: the `s3_main` environment logs on the USB-UART bridge port (often labelled
-"COM" or "UART"). If you only use the native USB port ("USB"), build `s3_main_nativeusb` instead.
+"COM" or "UART"). On the native USB port (`303A:1001`, "USB JTAG/serial debug unit"), build
+`s3_main_nativeusb` instead. Since 1 Nov 2026 the team's board is connected through its CH343
+bridge (`1a86:55d3`, appears as `/dev/ttyACM0`) and runs `s3_main`.
 
-## 5.2 I²C bus (S3)
+Chip as reported by esptool on 31 Oct 2026: ESP32-S3 (QFN56) rev v0.2 with **embedded 8 MB PSRAM**,
+MAC fc:01:2c:d1:5c:6c. The boot banner reports 16 MB flash. In-package PSRAM on the S3 is octal and
+occupies GPIO33–37, which this map already avoids. The build does not enable PSRAM.
 
-| Address | Device | Expected in `i2cscan` |
-|---|---|---|
-| 0x40 | PCA9685 (A0–A5 open) | yes |
-| 0x70 | PCA9685 all-call | may appear |
+## 5.2 Camera pan servo
 
-Bus speed 100 kHz, 20 ms timeout. If the board shows a different address (solder jumpers), set
-`PCA9685_I2C_ADDR` in `src/s3/config_hardware.h`.
+The pan servo (MG996R) is wired to the ESP32-CAM (IO2), not to the S3, and the S3 has no I²C bus. See
+§5.3 and [03_electrical.md](03_electrical.md) §3.7.
 
-## 5.3 PCA9685 channels
+## 5.3 ESP32-CAM (AI-Thinker layout, **provisional**)
 
-| Channel | Device | Supply |
-|---|---|---|
-| 0 | SG90 camera pan (`PAN_SERVO_CHANNEL`) | V+ from the "servo 5 V" buck on the motor bus |
-| 1–15 | free | — |
-
-## 5.4 ESP32-CAM (AI-Thinker layout, **provisional**)
+Team's board (esptool, 1 Nov 2026): ESP32-D0WD-V3 rev v3.1, 40 MHz crystal, 4 MB flash,
+MAC 1c:c3:ab:e0:4b:14, programmed through an FTDI FT232R adapter with no reset line (press RST by hand).
 
 | GPIO | Function |
 |---|---|
@@ -72,6 +68,7 @@ Bus speed 100 kHz, 20 ms timeout. If the board shows a different address (solder
 | 26 / 27 | camera SIOD / SIOC (SCCB) |
 | 35, 34, 39, 36, 21, 19, 18, 5 | camera D7 … D0 |
 | 25 / 23 / 22 | VSYNC / HREF / PCLK |
+| 2 | **pan servo signal, MG996R** (`PAN_PIN`, LEDC 50 Hz; provisional, strapping pin) |
 | 4 | flash LED (kept OFF) |
 | 13 | **link RX** ← S3 GPIO41 |
 | 14 | **link TX** → S3 GPIO42 |
@@ -84,7 +81,10 @@ sensor PID at boot (expected `0x2145` if the GC2145 hypothesis is right; `0x0026
 OV2640). A failed `esp_camera_init` means this layout or the sensor is wrong. Stop and identify
 the module.
 
-## 5.5 Optional audio board (ESP32 DevKitC, provisional)
+## 5.4 Optional audio board (ESP32 DevKitC, provisional)
+
+Team's board (esptool, 1 Nov 2026): ESP32-D0WD-V3 rev v3.1, **26 MHz crystal** (unusual; the
+Arduino core auto-detects it), 4 MB flash, CP2102 USB bridge, MAC 8c:94:df:69:24:ac.
 
 | GPIO | Function | Part pin |
 |---|---|---|

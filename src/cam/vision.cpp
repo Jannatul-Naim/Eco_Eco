@@ -5,6 +5,7 @@
 #include "cam_link.h"
 #include "config_cam.h"
 #include "ipv4.h"
+#include "pan.h"
 #include "quirc.h"
 
 namespace {
@@ -27,6 +28,7 @@ struct quirc_data g_data;          // ~9 KB
 
 VisionStats g_stats = {};
 portMUX_TYPE g_statsMux = portMUX_INITIALIZER_UNLOCKED;
+TaskHandle_t g_visionTask = nullptr;
 
 // Motion state (vision task only)
 uint8_t g_motCur[kMotionCells];
@@ -70,14 +72,15 @@ void resetMotion(uint8_t settleFrames) {
   g_motSettleLeft = settleFrames;
 }
 
-void runMotion(const LinkConfig& cfg) {
+void runMotion(uint32_t nowMs) {
   // While the camera turns every pixel changes: drop the baseline and wait
-  // until the S3 reports the pan settled (with a new epoch) plus a few frames.
-  if (cfg.pan == PanInfo::Moving) {
+  // until the pan has settled (new epoch) plus a few frames.
+  const PanStatus pan = panStatus();
+  if (pan.state == boardlink::PanState::Moving) {
     resetMotion(MOTION_SETTLE_FRAMES);
     return;
   }
-  if (g_motHavePrev && cfg.pan != PanInfo::Absent && cfg.panEpoch != g_motEpoch) resetMotion(MOTION_SETTLE_FRAMES);
+  if (g_motHavePrev && pan.epoch != g_motEpoch) resetMotion(MOTION_SETTLE_FRAMES);
   if (g_motSettleLeft > 0) {
     --g_motSettleLeft;
     return;
@@ -86,7 +89,7 @@ void runMotion(const LinkConfig& cfg) {
   if (!g_motHavePrev) {
     memcpy(g_motPrev, g_motCur, kMotionCells);
     g_motHavePrev = true;
-    g_motEpoch = cfg.panEpoch;
+    g_motEpoch = pan.epoch;
     linkSendMotion(false, 0.0f, 0.0f, 0.0f, g_motEpoch, true);
     return;
   }
@@ -115,6 +118,7 @@ void runMotion(const LinkConfig& cfg) {
     cy = ((static_cast<float>(sumY) / changed + 0.5f) / MOTION_H) * 2.0f - 1.0f;
   }
   linkSendMotion(detected, cx, cy, area, g_motEpoch, baseline);
+  panMotionSeen(detected, cx, nowMs);
   portENTER_CRITICAL(&g_statsMux);
   g_stats.motionDetected = detected;
   g_stats.motionCx = cx;
@@ -158,6 +162,13 @@ void runQr(uint32_t nowMs) {
     const size_t rawLen = static_cast<size_t>(g_data.payload_len);
     const ipv4::Result r = QR_ALLOW_EMBEDDED_IPV4 ? ipv4::extractUnique(raw, rawLen, ip) : ipv4::validate(raw, rawLen, ip);
     const bool ok = r == ipv4::Result::kOk;
+    portENTER_CRITICAL(&g_statsMux);
+    g_stats.qrAtMs = nowMs;
+    g_stats.qrOk = ok;
+    strlcpy(g_stats.qrText, text, sizeof(g_stats.qrText));
+    strlcpy(g_stats.qrIp, ok ? ip : "", sizeof(g_stats.qrIp));
+    strlcpy(g_stats.qrErr, ok ? "" : ipv4::resultName(r), sizeof(g_stats.qrErr));
+    portEXIT_CRITICAL(&g_statsMux);
     if (!strcmp(text, g_qrLastText) && nowMs - g_qrLastSentMs < QR_RESEND_SAME_MS) continue;
     strlcpy(g_qrLastText, text, sizeof(g_qrLastText));
     g_qrLastSentMs = nowMs;
@@ -200,7 +211,7 @@ void visionTask(void*) {
     const uint32_t now = millis();
     const LinkConfig cfg = linkConfig();
     if (cfg.motion) {
-      runMotion(cfg);
+      runMotion(now);
     } else if (wasMotion) {
       resetMotion(0);
     }
@@ -236,8 +247,14 @@ bool visionBegin() {
 }
 
 void visionStartTask() {
-  // Core 1: Wi-Fi and the HTTP servers run on core 0.
-  xTaskCreatePinnedToCore(visionTask, "vision", 8192, nullptr, 4, nullptr, 1);
+  // Core 1: Wi-Fi and the HTTP servers run on core 0. Stack: quirc_decode()
+  // keeps a ~8.9 KB struct datastream on the stack, so 8 KB overflowed (and
+  // rebooted the camera) the moment a real QR code was decoded.
+  xTaskCreatePinnedToCore(visionTask, "vision", VISION_TASK_STACK_BYTES, nullptr, 4, &g_visionTask, 1);
+}
+
+uint32_t visionStackFreeBytes() {
+  return g_visionTask ? uxTaskGetStackHighWaterMark(g_visionTask) : 0;  // bytes on ESP32
 }
 
 VisionStats visionStats() {

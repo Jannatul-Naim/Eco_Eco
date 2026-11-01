@@ -31,10 +31,6 @@ constexpr int PIN_RIGHT_A = 6;
 constexpr int PIN_RIGHT_B = 7;
 constexpr int PIN_DRIVER_EN = 15;  // BTS7960 only; left unconnected for MD30C
 
-// ---- I2C to PCA9685 (camera-pan servo controller)
-constexpr int PIN_I2C_SDA = 8;
-constexpr int PIN_I2C_SCL = 9;
-
 // ---- HC-SR04 sonars. Every ECHO goes through its own 1k / 1k8 divider.
 // Index order is fixed: 0 front-center, 1 front-left, 2 front-right, 3 rear.
 constexpr int PIN_SONAR_TRIG[4] = {10, 12, 14, 17};
@@ -49,4 +45,5 @@ constexpr int PIN_CAM_UART_RX = 42;  // S3 RX <- CAM GPIO14 (CAM TX)
 // Open, unplugged or broken wire (HIGH) = treated as PRESSED (fail-safe).
 constexpr int PIN_ESTOP_SENSE = 21;
 
-// Spare, believed safe on DevKitC-1-style boards: 39, 40.
+// Spare, believed safe on DevKitC-1-style boards: 8, 9 (the old PCA9685 I2C
+// pins; the pan servo now runs on the ESP32-CAM), 39, 40.

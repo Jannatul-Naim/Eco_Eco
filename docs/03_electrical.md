@@ -52,10 +52,10 @@ divider so the cap follows the real voltage.
 | P5 | DC contactor / power relay, **12 V coil**, contacts rated **≥ 40 A at ≥ 14 V DC** | 1 | RECOMMENDED | check the DC (not AC) contact rating on the datasheet. A sealed automotive 40 A relay with a DC rating is acceptable. |
 | P6 | Momentary NO push button, green, "ARM" | 1 | RECOMMENDED | the deliberate restart action (rule 1.2.4) |
 | P7 | Flyback diode across the contactor coil (1N4007) | 1 | RECOMMENDED | cathode to coil +. Omit if the relay has a built-in diode (check polarity). |
-| P8 | Inline blade-fuse holders + fuses: **25 A** main, **15 A** × 2 (driver branches), **3 A** logic, **2 A** servo supply, **1 A** × 2 (coil/ARM and hold path) | 1 set | RECOMMENDED | slow-blow automotive blade (ATO/ATC). Main fuse as close to the battery as possible. |
+| P8 | Inline blade-fuse holders + fuses: **25 A** main, **15 A** × 2 (driver branches), **3 A** logic, **3 A** servo supply, **1 A** × 2 (coil/ARM and hold path) | 1 set | RECOMMENDED | slow-blow automotive blade (ATO/ATC). Main fuse as close to the battery as possible. |
 | P9 | XT60 pair (battery), XT30 pairs (driver branches, buck inputs) | 1 + 4 | RECOMMENDED | rulebook 3.2.1 |
 | P10 | 5 V buck converter, ≥ 3 A continuous, 6–24 V in ("logic 5 V") | 1 | RECOMMENDED | S3, ESP32-CAM, sonars, optional audio board |
-| P11 | 5 V buck converter, ≥ 2 A continuous ("servo 5 V") | 1 | RECOMMENDED | SG90 only; fed from the **motor bus** so the E-stop also stops the servo |
+| P11 | 5 V buck converter, ≥ 3 A continuous ("servo 5 V") | 1 | RECOMMENDED | MG996R only (stall ≈ 2.5 A); fed from the **motor bus** so the E-stop also stops the servo |
 | P12 | Wire: 14 AWG silicone red/black (battery to drivers), 18 AWG (drivers to motors), 22 AWG red/black (5 V rails), 24–26 AWG coloured (signals) | — | RECOMMENDED | rulebook 3.2.3 colours |
 | P13 | 12 V DC 4-inch case fan | 1 | listed in the team's notes; current UNKNOWN | on the logic branch (after the 3 A fuse); check its current on the label |
 
@@ -63,17 +63,17 @@ divider so the cap follows the real voltage.
 
 | # | Part | Qty | Label | Notes |
 |---|---|---|---|---|
-| C1 | ESP32-S3 dev board, marked "ESP32 23 2022 V1.3" | 1 | CONFIRMED (owned); **pinout UNKNOWN** | treated as DevKitC-1 compatible, see [05_pin_maps.md](05_pin_maps.md). Photograph both sides and the header silkscreen before wiring. |
+| C1 | ESP32-S3 dev board, marked "ESP32 23 2022 V1.3" | 1 | CONFIRMED (owned); ESP32-S3-N16R8, DevKitC-1 header (photo) | treated as DevKitC-1 compatible, see [05_pin_maps.md](05_pin_maps.md). Photograph both sides and the header silkscreen before wiring. |
 | C2 | ESP32-CAM assembly with "RHYX M21-45" camera | 1 | CONFIRMED (owned); **sensor UNKNOWN** | AI-Thinker layout assumed; GC2145-family RGB565 is only a hypothesis. The firmware reads the sensor PID at boot. |
-| C3 | USB-UART adapter (3.3 V) or ESP32-CAM-MB board, to flash the ESP32-CAM | 1 | RECOMMENDED | the ESP32-CAM has no USB port |
+| C3 | ESP32-CAM-MB board (shows up as an FTDI FT232R, `0403:6001`), to flash the ESP32-CAM | 1 | CONFIRMED (owned) | the ESP32-CAM has no USB port. This MB has **no auto-reset**: hold IO0, press RST to flash; press RST alone to run |
 | C4 | HC-SR04 ultrasonic sensor | 4 | **1 CONFIRMED**, 3 to buy | front-center, front-left, front-right, rear. Fit order: front-center, then **rear** (enables reverse), then left/right. |
 | C5 | Echo divider per sonar: 1 kΩ series + 1.8 kΩ to GND (5 V → 3.2 V) | 4 sets | RECOMMENDED | **never** connect 5 V Echo straight to an ESP32 pin |
-| C6 | PCA9685 16-channel 12-bit PWM board (Adafruit-style, V+ terminal block) | 1 | RECOMMENDED | generates the servo signal; the S3 never drives the servo directly |
-| C7 | SG90-class 180° micro servo + camera pan bracket | 1 | RECOMMENDED | 180° is nominal; the usable range comes from calibration and the bracket |
+| C6 | ~~PCA9685 PWM board~~ | 0 | **not needed** | since 1 Nov 2026 the ESP32-CAM drives the servo signal itself (IO2) |
+| C7 | MG996R metal-gear servo, **180° positional type** + sturdy camera pan bracket | 1 | PLANNED (team choice, 1 Nov 2026) | not the 360° continuous-rotation version (stage 6 checks this); 55 g, so the bracket must be rigid. 180° is nominal; the usable range comes from calibration and the bracket |
 | C8 | 10 kΩ pull-down per motor-driver input | 4 (6 with BTS7960) | RECOMMENDED | keeps driver inputs LOW while the S3 boots or resets |
 | C9 | Battery divider 100 kΩ / 22 kΩ (+ 100 nF at the ADC pin) | 1 | RECOMMENDED | 12.6 V → 2.27 V on GPIO1 |
 | C10 | Motor-bus divider 100 kΩ / 22 kΩ (+ 100 nF) | 1 | optional | lets the firmware see that the contactor opened |
-| C11 | 470 µF 16 V electrolytic + 100 nF at the ESP32-CAM 5 V pin; 470–1000 µF at the PCA9685 V+ terminal | 2 | RECOMMENDED | ESP32-CAM brownouts and servo current spikes are common |
+| C11 | 470 µF 16 V electrolytic + 100 nF at the ESP32-CAM 5 V pin; 470–1000 µF across the servo 5 V / GND at the servo connector | 2 | RECOMMENDED | ESP32-CAM brownouts and servo current spikes are common |
 | C12 | Soldered veroboard/perfboard, female headers, JST-XH or Dupont crimp connectors, heat shrink, cable ties | — | RECOMMENDED | rulebook 3.1 |
 
 ### Optional audio (two-way audio task, teleop only, ×1)
@@ -106,7 +106,7 @@ the strength of this document; decide per line:
                  F1 25A                 K1 contactor (≥40 A DC)
  BAT+ ──XT60──●──[====]──●───────────────o/ o───────●── MOTOR BUS ──┬─F5 15A─XT30─► MD30C LEFT  B+ ─► 2 left motors
  (3S, BMS)    │          │                          │               ├─F6 15A─XT30─► MD30C RIGHT B+ ─► 2 right motors
-              │          │                          │               └─F8 2A ─XT30─► BUCK "servo 5V" ─► PCA9685 V+ ─► SG90
+              │          │                          │               └─F8 3A ─XT30─► BUCK "servo 5V" ─► MG996R red (signal from ESP32-CAM IO2)
               │          │                          │
               │          │   (E-stop / ARM latch, §3.4)
               │          │
@@ -116,18 +116,20 @@ the strength of this document; decide per line:
  BAT− ────────●──────────────────────────────────── common GND (star point near the drivers' B−)
 ```
 
-- **One ground.** Battery −, both drivers' B−, both buck GNDs, S3, CAM, PCA9685, servo and sonars
+- **One ground.** Battery −, both drivers' B−, both buck GNDs, S3, CAM, servo and sonars
   share one ground. Run the motor-current returns straight to the star point, not through the
   logic board.
 - **Logic stays powered when the E-stop is pressed.** The S3 keeps reporting telemetry, and the
   dashboard shows *why* it stopped.
-- **The servo supply is on the motor bus,** so the E-stop also stops the camera pan. The PCA9685
-  logic (VCC) is 3.3 V from the S3, so it stays visible on I²C.
+- **The servo supply is on the motor bus,** so the E-stop also stops the camera pan. Its signal
+  comes from the ESP32-CAM, which stays powered, and the S3 also tells the camera to hold the
+  pan while in E-stop.
 - **Current budget (5 V logic):** S3 about 0.35 A Wi-Fi peak, ESP32-CAM about 0.5 A peak,
   4 × HC-SR04 about 0.06 A, audio board about 0.3 A plus the amplifier (up to about 0.7 A peak at
   full volume). About 2 A peak in total, so the 3 A buck has margin.
-- **Servo 5 V:** an SG90 can draw several hundred mA when stalled. A 2 A buck plus 470–1000 µF on
-  V+ is enough. Never power the servo from the S3's 5 V pin.
+- **Servo 5 V:** an MG996R draws 0.5–0.9 A while moving and up to about 2.5 A stalled. Use a
+  buck rated ≥ 3 A continuous with 1000 µF at the servo, on a 3 A slow-blow fuse. Never power the
+  servo from the S3's or the ESP32-CAM's 5 V pin, nor from the logic buck.
 
 ## 3.4 E-stop circuit (hardware, independent of software)
 
@@ -203,21 +205,22 @@ go through a 74HC244 buffer powered from the module's VCC pin. At VCC = 5 V that
   so all distances are bumper-referenced (stage 4).
 - Most HC-SR04s trigger reliably from 3.3 V. If one does not, use the HC-SR04P (3.3–5 V) variant.
 
-## 3.7 PCA9685 → SG90 camera pan
+## 3.7 Camera pan servo (MG996R) on the ESP32-CAM
 
 | From | To | Notes |
 |---|---|---|
-| S3 GPIO8 (SDA) | PCA9685 SDA | I²C 100 kHz |
-| S3 GPIO9 (SCL) | PCA9685 SCL | |
-| S3 3V3 | PCA9685 **VCC** | logic at 3.3 V, so the board's I²C pull-ups go to 3.3 V, not 5 V |
-| GND | PCA9685 GND | common ground |
-| "servo 5V" buck (on the motor bus) | PCA9685 **V+** terminal block | servo power only, with 470–1000 µF across V+ / GND |
-| PCA9685 channel 0 | SG90 (orange = signal, red = V+, brown = GND) | `PAN_SERVO_CHANNEL = 0` |
+| ESP32-CAM **IO2** | MG996R signal (orange) | 50 Hz PWM from the camera's LEDC (`PAN_PIN`). Most MG996Rs accept a 3.3 V signal; if it jitters or ignores it, add a 74AHCT125 buffer powered from 5 V |
+| "servo 5V" buck (on the motor bus) | MG996R V+ (red) | servo power only, ≥ 3 A, with 1000 µF across V+ / GND at the servo |
+| GND | MG996R GND (brown) **and** ESP32-CAM GND | the signal needs this common ground |
 
-- Address 0x40 (A0–A5 open). `i2cscan` on the S3 console must show 0x40 (0x70, the all-call address, may also appear).
-- The firmware runs the PCA9685 at 50 Hz and starts with a narrow soft range of 45–135°.
-  Calibrate the end pulses in small steps (stage 6), and check that the camera ribbon cannot
-  snag at either end before widening the range.
+- IO2 is the only free camera pin that neither stops the boot (IO12) nor pulses at power-up
+  (IO15). It is a strapping pin, so nothing may pull it HIGH at reset; a servo signal input does not.
+  **Provisional** until stage 6 shows a normal boot with the servo connected.
+- The camera starts at home (90°), keeps a 45–135° range (`kPanMinDeg` / `kPanMaxDeg`, shared by
+  both boards) and slews at 120°/s. Calibrate the end pulses in small steps (stage 6), and check
+  that the camera ribbon cannot snag at either end before widening the range.
+- The S3 picks the pan mode (hold, goto, scan, track, pulse) over the camera link; scanning and
+  target following run on the camera.
 
 ## 3.8 ESP32-CAM
 
@@ -227,6 +230,7 @@ go through a 74HC244 buffer powered from the module's VCC pin. At VCC = 5 V that
 | GND | common GND | |
 | GPIO13 (RX) | S3 GPIO41 (TX) | 3.3 V both sides |
 | GPIO14 (TX) | S3 GPIO42 (RX) | |
+| GPIO2 | MG996R signal (orange) | camera pan servo, see §3.7 |
 | GPIO4 | — | flash LED, kept OFF by the firmware |
 | microSD slot | **leave empty** | it shares GPIO13/14 with the link |
 
@@ -259,14 +263,14 @@ No connection to the S3 other than common power and ground. It talks over Wi-Fi 
 - [ ] Every power joint uses XT30/XT60 or Deans. No bare wire, clips or tape.
 - [ ] Red = positive (voltage labelled at each junction), black = GND, other colours for signals.
 - [ ] Heat shrink on every joint, cable ties, strain relief at every connector.
-- [ ] Motor wires routed away from sonar and I²C wiring.
+- [ ] Motor wires routed away from sonar, servo and camera-link wiring.
 - [ ] E-stop rigidly mounted, reachable from outside without crossing moving parts.
 - [ ] Battery fused at the battery, secured against vibration, in a fire-resistant bag when charging.
 - [ ] Schematic drawn with every pin labelled, committed to the repository with the pin map.
 
 ## 3.11 Shopping list (beyond what the team already owns)
 
-3 × HC-SR04 · 1 × PCA9685 board · 1 × SG90 + pan bracket · 2 × MD30C (or confirm the owned
+3 × HC-SR04 · 1 × MG996R (180° type) + rigid pan bracket · 1 × 5 V ≥ 3 A servo buck · 2 × MD30C (or confirm the owned
 drivers) · 4 × Pololu #4744 (or #4754 with encoders; or confirm the owned 25GA motors' rating) ·
 1 × red mushroom E-stop with 2 NC blocks · 1 × 12 V-coil contactor ≥ 40 A DC · 1 × green NO
 push button · fuse holders and 25/15/15/3/2/1/1 A blade fuses · XT60 × 1 pair, XT30 × 4 pairs ·

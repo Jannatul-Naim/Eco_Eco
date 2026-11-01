@@ -1,5 +1,7 @@
 #include "console.h"
 
+#include <esp_mac.h>
+
 #include "config_hardware.h"
 #include "config_pins.h"
 #include "config_tuning.h"
@@ -53,8 +55,9 @@ void printStatus() {
                 s.estopSense, s.estopSource, s.motorsArmed, s.outLeft, s.outRight);
   Serial.printf("battery wired=%d v=%.2f | motor bus wired=%d v=%.2f\n", s.battWired, s.battV, s.busWired, s.busV);
   printSonar(s);
-  Serial.printf("pan present=%d state=%s angle=%.1f target=%.1f pulse=%.0fus\n", s.panPresent, panStateName(s.pan),
-                s.panDeg, s.panTarget, s.panPulseUs);
+  Serial.printf("pan (on camera) present=%d mode=%s state=%s angle=%.1f target=%.1f pulse=%.0fus tracking=%d\n",
+                s.panPresent, panModeName(s.cam.panMode), panStateName(s.cam.panState), s.cam.panDeg,
+                s.cam.panTarget, s.cam.panPulseUs, s.cam.panTracking);
   Serial.printf("camera link=%s ip=%s sensor=%s pid=%s fps=%.1f rx_ok=%lu rx_bad=%lu\n", s.camLink, s.cam.ip,
                 s.cam.sensor, s.cam.pid, s.cam.fps, static_cast<unsigned long>(s.cam.rxOk),
                 static_cast<unsigned long>(s.cam.rxBad));
@@ -64,27 +67,6 @@ void printStatus() {
                 static_cast<unsigned long>(s.ping.rttMs));
   Serial.printf("wifi %s ssid=%s ip=%s rssi=%d | heap=%lu\n", n.mode, n.ssid, n.ip, n.rssi,
                 static_cast<unsigned long>(ESP.getFreeHeap()));
-}
-
-void i2cScan() {
-  withLock([] {
-    g_rover.snapshot(&g_snap);
-    if (g_snap.motorsArmed) {
-      Serial.println("refused: motors armed (switch to idle first)");
-      return;
-    }
-    Serial.printf("I2C scan on SDA=%d SCL=%d:\n", PIN_I2C_SDA, PIN_I2C_SCL);
-    int found = 0;
-    for (uint8_t a = 1; a < 127; ++a) {
-      g_i2c.beginTransmission(a);
-      if (g_i2c.endTransmission() == 0) {
-        Serial.printf("  device at 0x%02X%s\n", a,
-                      a == PCA9685_I2C_ADDR ? "  <- expected PCA9685" : (a == 0x70 ? "  (PCA9685 all-call)" : ""));
-        ++found;
-      }
-    }
-    Serial.printf("%d device(s) found\n", found);
-  });
 }
 
 void printEvents() {
@@ -99,13 +81,13 @@ void printEvents() {
 void help() {
   Serial.println(
       "commands:\n"
-      "  status | sonar | i2cscan | events | wifi\n"
+      "  info | status | sonar | events | wifi\n"
       "  estop | reset | ack\n"
       "  mode idle | mode teleop | mode auto <traverse|proximity|qr_ping|motion>\n"
       "  start | abort\n"
       "  drive <left> <right> [ms]   (teleop only; -1..1, default 500 ms, max 3000 ms)\n"
       "  stop\n"
-      "  pan <deg> | pulse <us>       (pulse only in IDLE, for calibration)\n"
+      "  pan <deg> | pulse <us>       (servo on the camera; pulse only in IDLE, for calibration)\n"
       "  qr                           (teleop: decode QR + on-board ping)\n"
       "  motion on|off                (teleop: camera motion detection)");
 }
@@ -119,13 +101,13 @@ void execute(char* line) {
 
   if (!strcmp(cmd, "help") || !strcmp(cmd, "?")) {
     help();
+  } else if (!strcmp(cmd, "info")) {
+    consolePrintBanner();
   } else if (!strcmp(cmd, "status")) {
     printStatus();
   } else if (!strcmp(cmd, "sonar")) {
     withLock([] { g_rover.snapshot(&g_snap); });
     printSonar(g_snap);
-  } else if (!strcmp(cmd, "i2cscan")) {
-    i2cScan();
   } else if (!strcmp(cmd, "events")) {
     printEvents();
   } else if (!strcmp(cmd, "wifi")) {
@@ -220,4 +202,48 @@ void consoleLoop(uint32_t nowMs) {
       }
     }
   }
+}
+
+const char* resetReasonName() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: return "power_on";
+    case ESP_RST_EXT: return "external";
+    case ESP_RST_SW: return "software";
+    case ESP_RST_PANIC: return "panic";
+    case ESP_RST_INT_WDT: return "int_wdt";
+    case ESP_RST_TASK_WDT: return "task_wdt";
+    case ESP_RST_WDT: return "wdt";
+    case ESP_RST_DEEPSLEEP: return "deep_sleep";
+    case ESP_RST_BROWNOUT: return "brownout";
+    case ESP_RST_SDIO: return "sdio";
+    default: return "unknown";
+  }
+}
+
+void consolePrintBanner() {
+  Serial.println();
+  Serial.println("==================================================");
+  Serial.printf(" URRT rover main controller  %s  (reset: %s)\n", FW_VERSION, resetReasonName());
+  uint8_t mac[6];
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);  // byte order as esptool prints it
+  Serial.printf(" chip %s rev %d, %d cores, %lu MHz, MAC %02x:%02x:%02x:%02x:%02x:%02x\n", ESP.getChipModel(),
+                ESP.getChipRevision(), ESP.getChipCores(), static_cast<unsigned long>(ESP.getCpuFreqMHz()), mac[0],
+                mac[1], mac[2], mac[3], mac[4], mac[5]);
+  // The build does not enable PSRAM (the S3 does not need it), so a chip that
+  // has some still reports it as not enabled.
+  Serial.printf(" flash %lu MB, PSRAM %s\n", static_cast<unsigned long>(ESP.getFlashChipSize() >> 20),
+                psramFound() ? "present (unused)" : "not enabled in this build");
+#if ARDUINO_USB_CDC_ON_BOOT
+  Serial.println(" serial log: native USB port (USB-Serial/JTAG)");
+#else
+  Serial.println(" serial log: UART0 (USB-UART bridge port)");
+#endif
+  Serial.printf(" pin map: %s (see docs/05_pin_maps.md)\n", ROVER_PINMAP_STATUS);
+  Serial.printf(" motor driver: %s | E-stop sense: %s | battery sense: %s\n",
+                MOTOR_DRIVER_TYPE == DRIVER_BTS7960 ? "BTS7960" : "MD30C", ESTOP_SENSE_FITTED ? "fitted" : "NOT fitted",
+                BATTERY_SENSE_FITTED ? "fitted" : "not fitted");
+  Serial.printf(" sonars fitted: FC=%d FL=%d FR=%d REAR=%d\n", SONAR_FITTED[0], SONAR_FITTED[1], SONAR_FITTED[2],
+                SONAR_FITTED[3]);
+  Serial.println(" motor outputs start DISABLED. Type 'help' for console commands.");
+  Serial.println("==================================================");
 }

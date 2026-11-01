@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "rover_protocol.h"
+
 constexpr const char* FW_VERSION = "s3-main 0.1.0";
 
 enum class Mode : uint8_t { Idle, Teleop, Auto };
@@ -27,7 +29,11 @@ enum class CmdSource : uint8_t { Http, WebSocket, Serial, Internal };
 
 enum class SonarStatus : uint8_t { NotFitted, NoData, Ok, OutOfRange, NoEcho, StuckHigh };
 
-enum class PanState : uint8_t { Absent, Moving, Settled };
+// The pan servo lives on the camera; its modes and states are part of the link.
+using boardlink::PanMode;
+using boardlink::PanState;
+using boardlink::panModeName;
+using boardlink::panStateName;
 
 enum class PingState : uint8_t { Idle, Running, Reply, Timeout, Error };
 
@@ -118,15 +124,6 @@ inline const char* sonarStatusName(SonarStatus s) {
     case SonarStatus::OutOfRange: return "out_of_range";
     case SonarStatus::NoEcho: return "no_echo";
     case SonarStatus::StuckHigh: return "echo_stuck_high";
-  }
-  return "?";
-}
-
-inline const char* panStateName(PanState s) {
-  switch (s) {
-    case PanState::Absent: return "absent";
-    case PanState::Moving: return "moving";
-    case PanState::Settled: return "settled";
   }
   return "?";
 }

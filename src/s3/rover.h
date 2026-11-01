@@ -8,14 +8,12 @@
 #pragma once
 
 #include <Arduino.h>
-#include <Wire.h>
 
 #include <atomic>
 
 #include "cam_link.h"
 #include "estop_input.h"
 #include "motors.h"
-#include "pan_servo.h"
 #include "pinger.h"
 #include "power_sense.h"
 #include "rover_types.h"
@@ -50,12 +48,10 @@ struct RoverSnapshot {
   SonarReading sonar[4];
   bool sonarFitted[4];
   int frontFilteredMm;
-  // Camera / pan
+  // Camera and its pan servo (pan fields are in cam.pan*)
   CamState cam;
   const char* camLink;
-  PanState pan;
-  float panDeg, panTarget, panPulseUs;
-  bool panPresent;
+  bool panPresent;  // camera link fresh and it reports a fitted servo
   // QR + ping
   bool qrRequested;
   PingResult ping;
@@ -99,7 +95,6 @@ class Rover {
   }
 
   SonarArray& sonar() { return sonar_; }
-  PanServo& pan() { return pan_; }
 
  private:
   enum class QrPhase : uint8_t { Off, Scanning, Pinging, Done };
@@ -116,13 +111,12 @@ class Rover {
   void runProximity(uint32_t nowMs, float* l, float* r);
   void runQrPing(uint32_t nowMs, bool missionMode);
   void runMotion(uint32_t nowMs);
-  void scanPan(uint32_t nowMs);
+  CamRequest camRequest();
   void applyDrive(float l, float r, bool armed, float cap, uint32_t nowMs, float dt);
 
   EStopInput estop_;
   MotorOutputs motors_;
   SonarArray sonar_;
-  PanServo pan_;
   PowerSense power_;
   CamLink cam_;
   Pinger pinger_;
@@ -171,8 +165,10 @@ class Rover {
   uint32_t trackStartMs_ = 0;
   uint32_t lastDetMs_ = 0;
 
-  uint8_t scanIdx_ = 0;
-  uint32_t scanDwellStartMs_ = 0;
+  // Manual pan (IDLE/TELEOP). Scanning and tracking run on the camera.
+  float panManualDeg_ = boardlink::kPanHomeDeg;
+  bool panPulseMode_ = false;  // raw calibration pulse, IDLE only
+  float panPulseUs_ = 0.0f;
 };
 
 // Global lock guarding the Rover instance.
@@ -188,4 +184,3 @@ class RoverLock {
 };
 
 extern Rover g_rover;
-extern TwoWire& g_i2c;

@@ -305,8 +305,10 @@ void setup() {
   Serial.printf(" URRT audio bridge  %s  (OPTIONAL, no motor authority)\n", AUDIO_FW_VERSION);
   g_micOk = micBegin();
   g_spkOk = speakerBegin();
-  Serial.printf(" mic I2S0 %s | speaker I2S1 %s | %lu Hz s16le mono\n", g_micOk ? "OK" : "FAILED",
-                g_spkOk ? "OK" : "FAILED", static_cast<unsigned long>(AUDIO_SAMPLE_RATE));
+  // Driver start only: I2S cannot tell whether an INMP441 or MAX98357A is wired.
+  // A missing mic shows as "mic level 0".
+  Serial.printf(" I2S drivers: mic %s | speaker %s | %lu Hz s16le mono\n", g_micOk ? "started" : "FAILED",
+                g_spkOk ? "started" : "FAILED", static_cast<unsigned long>(AUDIO_SAMPLE_RATE));
   Serial.println("==================================================");
 
   WiFi.persistent(false);

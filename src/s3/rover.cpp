@@ -9,11 +9,9 @@
 #include "ipv4.h"
 
 Rover g_rover;
-TwoWire& g_i2c = Wire;
 
 namespace {
 SemaphoreHandle_t s_lock = nullptr;
-constexpr size_t kScanCount = sizeof(PAN_SCAN_DEG) / sizeof(PAN_SCAN_DEG[0]);
 constexpr int FC = SonarArray::kFrontCenter;
 constexpr int FL = SonarArray::kFrontLeft;
 constexpr int FR = SonarArray::kFrontRight;
@@ -57,9 +55,6 @@ void Rover::begin() {
   estop_.begin();
   power_.begin();
   sonar_.begin();
-  g_i2c.begin(PIN_I2C_SDA, PIN_I2C_SCL, I2C_CLOCK_HZ);
-  g_i2c.setTimeOut(20);
-  pan_.begin(g_i2c);
   cam_.begin();
 
   // Let the E-stop input settle so the boot state reflects the real switch.
@@ -103,7 +98,6 @@ void Rover::resetMissionState(uint32_t nowMs) {
   blockedSinceMs_ = 0;
   proxStable_ = 0;
   proxInWindow_ = false;
-  scanDwellStartMs_ = 0;
   teleL_ = teleR_ = 0.0f;
   teleCmdMs_ = 0;
 }
@@ -114,8 +108,7 @@ void Rover::enterEstop(const char* source, const char* why, uint32_t nowMs) {
   armed_ = false;
   estopLatched_ = true;
   estopSource_ = source;
-  resetMissionState(nowMs);
-  pan_.freeze();
+  resetMissionState(nowMs);  // the camera pan holds while in EStop (camRequest)
   if (mode_ != Mode::Idle) {
     mode_ = Mode::Idle;
     modeChangedMs_ = nowMs;
@@ -127,8 +120,7 @@ void Rover::enterSafeStop(const char* why, uint32_t nowMs) {
   motors_.hardStop();
   outL_ = outR_ = 0.0f;
   armed_ = false;
-  resetMissionState(nowMs);
-  pan_.freeze();
+  resetMissionState(nowMs);  // the camera pan holds while in SafeStop (camRequest)
   setState(State::SafeStop, nowMs, "%s", why);
 }
 
@@ -172,7 +164,6 @@ void Rover::tick(uint32_t nowMs) {
   power_.update(nowMs);
   sonar_.update(nowMs);
   cam_.poll(nowMs);
-  pan_.update(nowMs);
 
   if (softEstopPending_.exchange(false) && state_ != State::EStop) {
     enterEstop("software", "software E-stop", nowMs);
@@ -218,14 +209,40 @@ void Rover::tick(uint32_t nowMs) {
   // A mission may have finished or faulted during this tick.
   const bool armed = state_ == State::Teleop || autoActive(state_);
   applyDrive(tl, tr, armed, cap, nowMs, dt);
+  cam_.request(camRequest(), nowMs);
+}
 
+CamRequest Rover::camRequest() {
   CamRequest req;
+  const bool motionAuto = mission_ == Mission::Motion && autoActive(state_);
   req.qr = qrPhase_ == QrPhase::Scanning;
-  req.motion = (mission_ == Mission::Motion && autoActive(state_)) || (motionTeleop_ && state_ == State::Teleop);
-  req.pan = pan_.state();
-  req.panDeg = pan_.angle();
-  req.panEpoch = pan_.epoch();
-  cam_.request(req, nowMs);
+  req.motion = motionAuto || (motionTeleop_ && state_ == State::Teleop);
+  if (state_ != State::Idle) panPulseMode_ = false;  // raw pulse is an IDLE-only calibration
+
+  if (state_ == State::EStop || state_ == State::SafeStop) {
+    req.panMode = PanMode::Hold;
+  } else if (motionAuto) {
+    req.panMode = PanMode::Track;
+  } else if (mission_ == Mission::QrPing && autoActive(state_) && qrPhase_ == QrPhase::Scanning) {
+    req.panMode = PanMode::Scan;
+  } else if (autoActive(state_)) {
+    req.panMode = PanMode::Hold;
+  } else if (panPulseMode_) {
+    req.panMode = PanMode::Pulse;
+    req.pulseUs = panPulseUs_;
+  } else {
+    req.panMode = PanMode::Goto;
+  }
+  // While the camera moves on its own (or holds), follow its position so that
+  // handing pan back to the operator does not swing the camera.
+  if (req.panMode == PanMode::Hold || req.panMode == PanMode::Scan || req.panMode == PanMode::Track) {
+    const CamState& cs = cam_.state();
+    if (cs.panState != PanState::Absent) {
+      panManualDeg_ = clampf(cs.panDeg, boardlink::kPanMinDeg, boardlink::kPanMaxDeg);
+    }
+  }
+  req.panDeg = panManualDeg_;
+  return req;
 }
 
 void Rover::applyDrive(float l, float r, bool armed, float cap, uint32_t nowMs, float dt) {
@@ -266,18 +283,6 @@ void Rover::applyDrive(float l, float r, bool armed, float cap, uint32_t nowMs, 
 }
 
 // ------------------------------------------------------------------ missions
-
-void Rover::scanPan(uint32_t nowMs) {
-  if (!pan_.present() || pan_.state() != PanState::Settled) return;
-  if (scanDwellStartMs_ == 0) {
-    scanDwellStartMs_ = nowMs;
-    return;
-  }
-  if (nowMs - scanDwellStartMs_ < PAN_SCAN_DWELL_MS) return;
-  scanIdx_ = (scanIdx_ + 1) % kScanCount;
-  pan_.setTarget(PAN_SCAN_DEG[scanIdx_]);
-  scanDwellStartMs_ = 0;
-}
 
 void Rover::runTraverse(uint32_t nowMs, float* l, float* r) {
   if (nowMs - missionStartMs_ > TRAVERSE_TIMEOUT_MS) {
@@ -411,8 +416,7 @@ void Rover::runQrPing(uint32_t nowMs, bool missionMode) {
       g_events.add(EvLevel::Warn, "QR rejected (%s): \"%.28s\"",
                    cs.qrErr[0] ? cs.qrErr : ipv4::resultName(vr), cs.qrText);
     }
-    if (missionMode) scanPan(nowMs);
-    return;
+    return;  // in mission mode the camera sweeps its pan meanwhile (PanMode::Scan)
   }
   if (qrPhase_ == QrPhase::Pinging) {
     const PingResult pr = pinger_.result();
@@ -449,21 +453,16 @@ void Rover::runMotion(uint32_t nowMs) {
                   static_cast<unsigned long>(MOTION_GOAL_MS / 1000), static_cast<unsigned long>(MOTION_TIMEOUT_MS / 1000));
     return;
   }
-  const bool panSettled = !pan_.present() || pan_.state() == PanState::Settled;
+  // The camera pans itself (PanMode::Track) and drops its motion baseline while
+  // the servo moves, so every detection reported here comes from a settled view.
   if (cs.motSeq != motSeqSeen_) {
     motSeqSeen_ = cs.motSeq;
-    // Only frames whose baseline was taken after the camera settled count.
-    const bool epochOk = !pan_.present() || cs.motEpoch == pan_.epoch();
-    if (cs.motDetected && panSettled && epochOk) {
+    if (cs.motDetected) {
       if (trackStartMs_ == 0) {
         trackStartMs_ = nowMs;
         g_events.add(EvLevel::Info, "motion target acquired (cx %.2f)", cs.motCx);
       }
       lastDetMs_ = nowMs;
-      if (pan_.present() && fabsf(cs.motCx) > MOTION_RECENTER_CX) {
-        const float dir = (cs.motCx > 0.0f ? 1.0f : -1.0f) * MOTION_PAN_DIRECTION;
-        pan_.setTarget(pan_.angle() + dir * MOTION_RECENTER_STEP_DEG);
-      }
     }
   }
   if (trackStartMs_ != 0) {
@@ -471,13 +470,10 @@ void Rover::runMotion(uint32_t nowMs) {
       g_events.add(EvLevel::Warn, "motion target lost after %lu ms", static_cast<unsigned long>(lastDetMs_ - trackStartMs_));
       trackStartMs_ = 0;
       lastDetMs_ = 0;
-      scanDwellStartMs_ = 0;
     } else if (lastDetMs_ - trackStartMs_ >= MOTION_GOAL_MS) {
       finishMission(true, nowMs, "target tracked continuously for %.1f s", (lastDetMs_ - trackStartMs_) / 1000.0f);
-      return;
     }
   }
-  if (trackStartMs_ == 0) scanPan(nowMs);
 }
 
 // ------------------------------------------------------------------ commands
@@ -540,7 +536,6 @@ CmdResult Rover::startMission(CmdSource src) {
   }
   resetMissionState(now);
   missionStartMs_ = now;
-  scanIdx_ = 0;
   if (mission_ == Mission::QrPing) {
     qrPhase_ = QrPhase::Scanning;
     qrSeqAtStart_ = cam_.state().qrSeq;
@@ -611,19 +606,23 @@ CmdResult Rover::ackFault(CmdSource src) {
 CmdResult Rover::setPan(float deg, CmdSource src) {
   (void)src;
   if (mode_ == Mode::Auto) return CmdResult::conflict("pan is controlled on board in AUTO");
-  if (state_ == State::EStop) return CmdResult::conflict("E-stop active");
-  if (!pan_.present()) return CmdResult::conflict("PCA9685 not detected");
+  if (state_ == State::EStop || state_ == State::SafeStop) return CmdResult::conflict("E-stop or safe stop active");
+  if (!cam_.fresh(millis())) return CmdResult::conflict("camera link not up (the pan servo is on the camera)");
+  if (cam_.state().panState == PanState::Absent) return CmdResult::conflict("camera reports no pan servo fitted");
   if (!isfinite(deg)) return CmdResult::bad("angle must be a number");
-  pan_.setTarget(deg);
+  panPulseMode_ = false;
+  panManualDeg_ = clampf(deg, boardlink::kPanMinDeg, boardlink::kPanMaxDeg);
   return CmdResult::accepted("pan target set");
 }
 
 CmdResult Rover::setPanPulse(float us, CmdSource src) {
   if (state_ != State::Idle) return CmdResult::conflict("raw pulse calibration only in IDLE");
-  if (!pan_.present()) return CmdResult::conflict("PCA9685 not detected");
+  if (!cam_.fresh(millis())) return CmdResult::conflict("camera link not up (the pan servo is on the camera)");
+  if (cam_.state().panState == PanState::Absent) return CmdResult::conflict("camera reports no pan servo fitted");
   if (!isfinite(us)) return CmdResult::bad("us must be a number");
-  pan_.setRawPulse(us);
-  g_events.add(EvLevel::Info, "servo raw pulse %.0f us (%s)", pan_.lastPulseUs(), sourceName(src));
+  panPulseUs_ = clampf(us, boardlink::kPanPulseMinUs, boardlink::kPanPulseMaxUs);
+  panPulseMode_ = true;
+  g_events.add(EvLevel::Info, "servo raw pulse %.0f us (%s)", panPulseUs_, sourceName(src));
   return CmdResult::accepted("raw pulse set");
 }
 
@@ -678,11 +677,7 @@ void Rover::snapshot(RoverSnapshot* s) const {
   s->frontFilteredMm = sonar_.filteredMm(FC, now);
   s->cam = cam_.state();
   s->camLink = cam_.linkName(now);
-  s->pan = pan_.state();
-  s->panDeg = pan_.angle();
-  s->panTarget = pan_.target();
-  s->panPulseUs = pan_.lastPulseUs();
-  s->panPresent = pan_.present();
+  s->panPresent = cam_.fresh(now) && s->cam.panState != PanState::Absent;
   s->qrRequested = qrPhase_ == QrPhase::Scanning;
   s->ping = pinger_.result();
   strncpy(s->lastValidQrIp, lastValidQrIp_, sizeof(s->lastValidQrIp));

@@ -11,24 +11,26 @@
  │ laptop       │  (teleop    │  * motor authority │            │                  │    │
  │ browser +    │  rejected   │  * E-stop latch    │  UART 115200 (CRC-8 lines)   │    │
  │ gamepad      │  in AUTO)   │  * sonar, missions │◄──────────►┌─────────────┐ ┌──┴────────┐
- └──────────────┘             │  * ICMP ping       │ obs. only  │ ESP32-CAM   │ │ AUDIO     │
-                              │  * PCA9685 pan     │            │ stream, QR, │ │ (optional)│
-                              └──┬───────┬──────┬──┘            │ motion      │ │ mic + spk │
-                                 │PWM/DIR│I²C   │GPIO           └─────────────┘ └───────────┘
-                          ┌──────┴──┐ ┌──┴─────┐└─ 4× HC-SR04 (via 1k/1k8 echo dividers)
-                          │2× MD30C │ │PCA9685 │── SG90 camera pan
-                          └────┬────┘ └────────┘
+ └──────────────┘             │  * ICMP ping       │ obs. + pan │ ESP32-CAM   │ │ AUDIO     │
+                              │                    │ mode only  │ stream, QR, │ │ (optional)│
+                              └──┬────────────┬────┘            │ motion, pan │ │ mic + spk │
+                                 │PWM/DIR     │GPIO             └──────┬──────┘ └───────────┘
+                          ┌──────┴──┐         └─ 4× HC-SR04            │IO2
+                          │2× MD30C │            (1k/1k8 dividers) MG996R camera pan
+                          └────┬────┘
                      4 motors (2 per side, in parallel)
-           motor power passes through the DC contactor that the E-stop opens
+           motor and servo power pass through the DC contactor that the E-stop opens
 ```
 
 The rules this layout enforces:
 
-- **The S3 is the only motor authority.** The camera link has no drive message type. The S3's
+- **The S3 is the only motor authority.** The camera link has no drive message type; the only
+  thing the S3 sends the camera is which detectors to run and a pan mode for the camera's own pan servo. The S3's
   camera parser only writes into `CamState`, and nothing reads `CamState` to produce motor
   output except the S3's own mission code. The audio board can only send a status heartbeat.
-- **Perception and decisions run on board in AUTO.** The QR decode runs on the ESP32-CAM, and the
-  ping, sonar control and pan scanning run on the S3. The laptop is not involved: commands from it
+- **Perception and decisions run on board in AUTO.** QR decoding, motion detection, pan scanning
+  and target following run on the ESP32-CAM; mission logic, the ping and sonar control run on the
+  S3. The laptop is not involved: commands from it
   are rejected while `mode == auto` (`Rover::drive`, `setPan`), except E-stop and abort.
 - **The hardware E-stop does not depend on software.** It opens the motor-power contactor
   directly. The S3 also reads a second NC contact block and latches `ESTOP`. A software E-stop
@@ -90,8 +92,8 @@ All missions start only from AUTO_READY, after the team has declared autonomy to
 |---|---|---|---|
 | `traverse` | front sonars (FC required, FL/FR optional) | **never**: no encoder or lane-end sensor can verify the lane end | 30 s timeout; blocked > 3 s; sonar stale → SAFE_STOP |
 | `proximity` | front-center sonar (median filtered) | 5 consecutive readings inside 100 ± 20 mm while stopped | 20 s timeout; too close with reverse blocked |
-| `qr_ping` | camera (QR), pan scan, on-board ICMP | valid IPv4 decoded **and** ping reply | 30 s with no valid QR; no reply (requests still sent and logged); camera lost → SAFE_STOP |
-| `motion` | camera frame differencing, pan scan + recentring | target detected continuously for 5 s (gaps ≤ 1 s) | 60 s timeout; camera lost → SAFE_STOP |
+| `qr_ping` | camera (QR) sweeping its pan, on-board ICMP | valid IPv4 decoded **and** ping reply | 30 s with no valid QR; no reply (requests still sent and logged); camera lost → SAFE_STOP |
+| `motion` | camera frame differencing, camera-side pan sweep + recentring | target detected continuously for 5 s (gaps ≤ 1 s) | 60 s timeout; camera lost → SAFE_STOP |
 
 **QR + ping detail.** The camera runs quirc on the 320×240 luma image only while the S3
 requests it. Every decoded payload is checked with `ipv4::extractUnique`: exactly one distinct
@@ -100,12 +102,13 @@ sends a single ICMP echo request (`PING_COUNT = 1`; the rulebook needs one logge
 referee's server log is the proof, so a missing reply is reported as "sent, no reply" and not
 as a success.
 
-**Motion detail.** The S3 scans the pan through `PAN_SCAN_DEG` while nothing is detected. Every
-pan move increments the *pan epoch*, and the S3 tells the camera "moving" or "settled" plus the
-epoch. The camera drops its frame-difference baseline while moving, waits
-`MOTION_SETTLE_FRAMES` after settling, then takes a new baseline tagged with the epoch. The S3
-counts a detection only if its epoch matches the current pan epoch, so pan motion is never
-mistaken for a target. While tracking, the S3 nudges the pan toward the target when |cx| > 0.45.
+**Motion detail.** The S3 puts the camera in pan mode `track`; everything else runs on the
+camera, next to the detector. While nothing is detected the camera sweeps `PAN_SCAN_DEG`. Every
+pan move increments the camera's *pan epoch*; the detector drops its frame-difference baseline
+while the servo moves, waits `MOTION_SETTLE_FRAMES` after it settles, then takes a new baseline
+tagged with the epoch, so pan motion is never mistaken for a target. While a target is seen the
+camera nudges the pan 10° toward it when |cx| > 0.45, with no round trip to the S3. The S3 only
+times the mission: detections with gaps ≤ 1 s for 5 s → COMPLETE.
 
 ## 1.5 Threads and timing (S3)
 

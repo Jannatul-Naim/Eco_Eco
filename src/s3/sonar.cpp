@@ -43,7 +43,11 @@ void SonarArray::begin() {
     if (!SONAR_FITTED[i]) continue;
     pinMode(PIN_SONAR_TRIG[i], OUTPUT);
     digitalWrite(PIN_SONAR_TRIG[i], LOW);
-    pinMode(PIN_SONAR_ECHO[i], INPUT);  // external 1k/1k8 divider sets the level
+    // The external 1k/1k8 divider sets the level when a sensor is wired. The
+    // internal pull-down (~45k, negligible next to 1k8) keeps an unwired or
+    // broken echo line LOW, so it reports no_echo. Left floating, it picked up
+    // noise that read as steady ~1.5 m "ok" distances on the bench.
+    pinMode(PIN_SONAR_ECHO[i], INPUT_PULLDOWN);
     g_ctx[i] = {&cap_[i], PIN_SONAR_ECHO[i]};
     attachInterruptArg(PIN_SONAR_ECHO[i], onEchoEdge, &g_ctx[i], CHANGE);
   }

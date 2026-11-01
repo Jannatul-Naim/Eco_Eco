@@ -342,15 +342,20 @@ function renderSensors(se, teleop, auto, estopActive) {
   put('camAge', cam.hb_age_ms != null ? `${cam.hb_age_ms} ms` : '—');
   put('camIp', cam.ip || '—');
   put('camFps', `${cam.fps.toFixed(1)} fps · hb ${cam.hb_age_ms ?? '—'} ms`);
-  setStream(cam.link === 'ok' ? cam.stream_url : null);
+  // The video comes straight from the camera over Wi-Fi; the UART link only told
+  // us its address. Keep the picture through link blips (stream_url stays set).
+  setStream(cam.stream_url || null);
 
+  // The pan servo is wired to the camera board, so it needs the camera link.
   const pan = se.pan;
-  put('panState', pan.present ? pan.state : 'PCA9685 not detected', pan.present ? '' : 'warnc');
+  const panWhy = cam.link === 'ok' ? 'no servo on camera' : 'camera link down';
+  put('panState', pan.present ? `${pan.mode} · ${pan.state}${pan.tracking ? ' · tracking' : ''}` : panWhy,
+    pan.present ? '' : 'warnc');
   put('panAngle', pan.present ? `${pan.angle.toFixed(0)}° / ${pan.target.toFixed(0)}°` : '—');
   const slider = $('panSlider');
   slider.min = pan.soft_min;
   slider.max = pan.soft_max;
-  if (!panDragging) {
+  if (!panDragging && pan.present) {
     slider.value = pan.target;
     put('panOut', `${Math.round(pan.target)}°`);
   }

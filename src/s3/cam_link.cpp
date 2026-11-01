@@ -42,6 +42,11 @@ void CamLink::poll(uint32_t nowMs) {
     const char c = static_cast<char>(camSerial().read());
     if (rx_.push(c)) handleLine(rx_.line(), rx_.length(), nowMs);
   }
+  if (linkUp_ && !fresh(nowMs)) {
+    linkUp_ = false;
+    g_events.add(EvLevel::Warn, "camera link lost: no heartbeat for %lu ms",
+                 static_cast<unsigned long>(nowMs - st_.lastHbMs));
+  }
 }
 
 void CamLink::handleLine(const char* line, size_t len, uint32_t nowMs) {
@@ -63,16 +68,29 @@ void CamLink::handleLine(const char* line, size_t len, uint32_t nowMs) {
   }
   const char* type = doc["t"] | "";
   if (!strcmp(type, boardlink::kTypeHeartbeat)) {
-    if (!st_.everSeen || !fresh(nowMs)) g_events.add(EvLevel::Info, "camera link up (%s)", doc["ip"] | "no ip");
+    const bool linkWasDown = !st_.everSeen || !fresh(nowMs);
+    const bool hadIp = st_.ip[0] != '\0';
     st_.everSeen = true;
     st_.lastHbMs = nowMs;
     copyStr(st_.ip, sizeof(st_.ip), doc["ip"] | "");
+    if (linkWasDown) {
+      linkUp_ = true;
+      g_events.add(EvLevel::Info, "camera link up (%s)", st_.ip[0] ? st_.ip : "camera not on Wi-Fi yet");
+    } else if (!hadIp && st_.ip[0]) {
+      g_events.add(EvLevel::Info, "camera on Wi-Fi: %s", st_.ip);  // first heartbeats can precede its Wi-Fi
+    }
     copyStr(st_.sensor, sizeof(st_.sensor), doc["sen"] | "");
     copyStr(st_.pid, sizeof(st_.pid), doc["pid"] | "");
     st_.fps = doc["fps"] | 0.0f;
     st_.camUptimeMs = doc["up"] | 0u;
     st_.qrArmed = (doc["qr"] | 0) != 0;
     st_.motArmed = (doc["mot"] | 0) != 0;
+    st_.panMode = boardlink::parsePanMode(doc["pm"] | "hold");
+    st_.panState = boardlink::parsePanState(doc["pan"] | "absent");
+    st_.panDeg = clampf(doc["ang"] | 0.0f, 0.0f, 200.0f);
+    st_.panTarget = clampf(doc["tgt"] | 0.0f, 0.0f, 200.0f);
+    st_.panPulseUs = clampf(doc["pul"] | 0.0f, 0.0f, 3000.0f);
+    st_.panTracking = (doc["trk"] | 0) != 0;
   } else if (!strcmp(type, boardlink::kTypeQr)) {
     st_.qrSeq++;
     st_.qrMs = nowMs;
@@ -97,8 +115,8 @@ void CamLink::handleLine(const char* line, size_t len, uint32_t nowMs) {
 }
 
 void CamLink::request(const CamRequest& req, uint32_t nowMs) {
-  const bool changed = req.qr != lastSent_.qr || req.motion != lastSent_.motion || req.pan != lastSent_.pan ||
-                       req.panEpoch != lastSent_.panEpoch;
+  const bool changed = req.qr != lastSent_.qr || req.motion != lastSent_.motion || req.panMode != lastSent_.panMode ||
+                       fabsf(req.panDeg - lastSent_.panDeg) >= 0.5f || fabsf(req.pulseUs - lastSent_.pulseUs) >= 1.0f;
   if (!changed && nowMs - lastSendMs_ < CAM_CFG_PERIOD_MS) return;
   send(req);
   lastSent_ = req;
@@ -108,10 +126,9 @@ void CamLink::request(const CamRequest& req, uint32_t nowMs) {
 void CamLink::send(const CamRequest& req) {
   char json[160];
   const int n = snprintf(json, sizeof(json),
-                         "{\"v\":%d,\"t\":\"%s\",\"s\":%lu,\"qr\":%d,\"mot\":%d,\"pan\":\"%s\",\"ang\":%.1f,\"ep\":%lu}",
+                         "{\"v\":%d,\"t\":\"%s\",\"s\":%lu,\"qr\":%d,\"mot\":%d,\"pm\":\"%s\",\"ang\":%.1f,\"pul\":%.0f}",
                          boardlink::kProtocolVersion, boardlink::kTypeConfig, static_cast<unsigned long>(++txSeq_),
-                         req.qr ? 1 : 0, req.motion ? 1 : 0, panStateName(req.pan), req.panDeg,
-                         static_cast<unsigned long>(req.panEpoch));
+                         req.qr ? 1 : 0, req.motion ? 1 : 0, panModeName(req.panMode), req.panDeg, req.pulseUs);
   if (n <= 0 || static_cast<size_t>(n) >= sizeof(json)) return;
   char framed[boardlink::kMaxLine + 2];
   const size_t len = boardlink::frame(framed, sizeof(framed), json, static_cast<size_t>(n));

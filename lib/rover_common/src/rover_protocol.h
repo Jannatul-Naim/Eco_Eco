@@ -8,7 +8,9 @@
 //
 // SAFETY: there is deliberately no message type that carries a motor or
 // drive command. The S3 parser only accepts the camera types listed below
-// and only writes them into an observation struct.
+// and only writes them into an observation struct. The S3 -> CAM "cfg"
+// message carries a pan mode for the camera's own pan servo, which can only turn
+// the camera.
 #pragma once
 
 #include <stddef.h>
@@ -17,7 +19,7 @@
 
 namespace boardlink {
 
-constexpr int kProtocolVersion = 1;
+constexpr int kProtocolVersion = 2;  // 2: the pan servo moved to the camera board
 constexpr size_t kMaxLine = 240;  // bytes including "*HH" but excluding '\n'
 constexpr uint32_t kBaud = 115200;
 
@@ -27,6 +29,63 @@ constexpr const char* kTypeQr = "qr";
 constexpr const char* kTypeMotion = "mot";
 // S3 -> CAM message types
 constexpr const char* kTypeConfig = "cfg";
+
+// ---- Camera pan servo (MG996R on the ESP32-CAM) -----------------------------
+// The camera enforces these limits; the S3 validates commands against them and
+// shows them on the dashboard. Widen the range only after checking the cable
+// and bracket (docs/06 stage 6).
+constexpr float kPanMinDeg = 45.0f;
+constexpr float kPanMaxDeg = 135.0f;
+constexpr float kPanHomeDeg = 90.0f;
+constexpr float kPanPulseMinUs = 500.0f;  // raw-pulse calibration hard limits
+constexpr float kPanPulseMaxUs = 2500.0f;
+
+// What the S3 asks the camera to do with the servo (cfg "pm").
+//   hold:  stay where it is (E-stop, safe stop, link lost, missions without pan)
+//   goto:  move to "ang" (manual pan)
+//   scan:  sweep the scan positions (QR search)
+//   track: follow a motion target, sweep while there is none
+//   pulse: output the raw pulse "pul" in microseconds (calibration, IDLE only)
+enum class PanMode : uint8_t { Hold, Goto, Scan, Track, Pulse };
+// What the camera reports (heartbeat "pan"). No position feedback: "settled"
+// means the commanded angle was reached and the settle time has passed.
+enum class PanState : uint8_t { Absent, Moving, Settled };
+
+inline const char* panModeName(PanMode m) {
+  switch (m) {
+    case PanMode::Hold: return "hold";
+    case PanMode::Goto: return "goto";
+    case PanMode::Scan: return "scan";
+    case PanMode::Track: return "track";
+    case PanMode::Pulse: return "pulse";
+  }
+  return "hold";
+}
+
+// Unknown or missing names fall back to Hold, the mode that never moves.
+inline PanMode parsePanMode(const char* s) {
+  if (!s) return PanMode::Hold;
+  if (!strcmp(s, "goto")) return PanMode::Goto;
+  if (!strcmp(s, "scan")) return PanMode::Scan;
+  if (!strcmp(s, "track")) return PanMode::Track;
+  if (!strcmp(s, "pulse")) return PanMode::Pulse;
+  return PanMode::Hold;
+}
+
+inline const char* panStateName(PanState s) {
+  switch (s) {
+    case PanState::Absent: return "absent";
+    case PanState::Moving: return "moving";
+    case PanState::Settled: return "settled";
+  }
+  return "absent";
+}
+
+inline PanState parsePanState(const char* s) {
+  if (s && !strcmp(s, "moving")) return PanState::Moving;
+  if (s && !strcmp(s, "settled")) return PanState::Settled;
+  return PanState::Absent;
+}
 
 inline uint8_t crc8(const uint8_t* data, size_t len) {
   uint8_t crc = 0x00;

@@ -60,13 +60,8 @@ constexpr float MOTOR_RATED_V = 12.0f;
 // Duty cap used when battery voltage is NOT measured (12.0 / 12.6).
 constexpr float MOTOR_DUTY_CAP_NO_VSENSE = 0.95f;
 
-// ---- PCA9685 + SG90 camera pan ------------------------------------------------
-constexpr bool PCA9685_FITTED = true;
-constexpr uint8_t PCA9685_I2C_ADDR = 0x40;     // default with A0..A5 open; VERIFY with i2cscan
-constexpr uint8_t PAN_SERVO_CHANNEL = 0;
-constexpr uint32_t PCA9685_OSC_HZ = 25000000;  // nominal; trim if a scope shows != 50 Hz
-constexpr float PCA9685_SERVO_HZ = 50.0f;
-constexpr uint32_t I2C_CLOCK_HZ = 100000;
+// The camera-pan servo (MG996R) is wired to the ESP32-CAM, not to the S3
+// (src/cam/config_cam.h). The S3 only picks its mode over the camera link.
 
 // ---- Hardware the project does NOT have (documented, not faked) --------------
 // No wheel encoders and no lane-end marker sensor: traverse completion can not

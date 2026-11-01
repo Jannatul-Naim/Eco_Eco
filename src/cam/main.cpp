@@ -1,17 +1,21 @@
 // URRT rover — ESP32-CAM vision board.
 //
-// Observes only: MJPEG stream (port 81), QR decode and motion detection. The
-// results go to the S3 over the UART link as observations. This board has no
-// motor wiring and the link protocol has no drive command.
+// MJPEG stream (port 81), QR decode, motion detection and the camera-pan
+// servo. Results go to the S3 over the UART link as observations; the S3 picks
+// the detectors and the pan mode. This board has no drive-motor wiring and the
+// link protocol has no drive command.
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <esp_camera.h>
 #include <esp_http_server.h>
 
+#include "bench_page.h"
 #include "cam_link.h"
 #include "config_cam.h"
+#include "pan.h"
 #include "vision.h"
 
 #if __has_include("secrets.h")
@@ -19,6 +23,9 @@
 #else
 #warning "src/cam/secrets.h missing: using secrets.example.h (S3 bench AP only). Copy and edit it."
 #include "secrets.example.h"
+#endif
+#ifndef CAM_OTA_PASSWORD
+#define CAM_OTA_PASSWORD ""  // older secrets.h: OTA stays off
 #endif
 
 constexpr const char* CAM_FW_VERSION = "cam 0.1.0";
@@ -127,21 +134,43 @@ esp_err_t statusHandler(httpd_req_t* req) {
   doc["ssid"] = WiFi.SSID();
   doc["rssi"] = WiFi.RSSI();
   JsonObject l = doc["link"].to<JsonObject>();
+  l["source"] = cfgSourceName(cfg.source);  // s3, bench or none
   l["cfg_fresh"] = cfg.fresh;
   l["qr"] = cfg.qr;
   l["motion"] = cfg.motion;
-  l["pan"] = cfg.pan == PanInfo::Moving ? "moving" : (cfg.pan == PanInfo::Settled ? "settled" : "absent");
-  l["pan_epoch"] = cfg.panEpoch;
+  l["pan_mode"] = boardlink::panModeName(cfg.panMode);
+  l["pan_angle"] = cfg.panDeg;
+  const PanStatus p = panStatus();
+  JsonObject pan = doc["pan"].to<JsonObject>();
+  pan["fitted"] = PAN_SERVO_FITTED;
+  pan["pin"] = PAN_PIN;
+  pan["mode"] = boardlink::panModeName(p.mode);
+  pan["state"] = boardlink::panStateName(p.state);
+  pan["angle"] = roundf(p.angle * 10.0f) / 10.0f;
+  pan["target"] = roundf(p.target * 10.0f) / 10.0f;
+  pan["pulse_us"] = static_cast<int>(p.pulseUs);
+  pan["tracking"] = p.tracking;
+  pan["epoch"] = p.epoch;
   JsonObject q = doc["qr"].to<JsonObject>();
   q["attempts"] = v.qrAttempts;
   q["decoded"] = v.qrDecoded;
   q["last_ms"] = v.lastQrMs;
+  // v is a local copy: pass its arrays as const char* so ArduinoJson copies them.
+  q["last_text"] = static_cast<const char*>(v.qrText);
+  q["last_ip"] = static_cast<const char*>(v.qrIp);
+  q["last_err"] = static_cast<const char*>(v.qrErr);
+  if (v.qrAtMs) {
+    q["age_ms"] = millis() - v.qrAtMs;
+  } else {
+    q["age_ms"] = nullptr;
+  }
   JsonObject m = doc["motion"].to<JsonObject>();
   m["detected"] = v.motionDetected;
   m["cx"] = v.motionCx;
   m["area"] = v.motionArea;
   doc["free_heap"] = ESP.getFreeHeap();
   doc["free_psram"] = ESP.getFreePsram();
+  doc["vision_stack_free"] = visionStackFreeBytes();
   return sendJson(req, doc);
 }
 
@@ -160,16 +189,29 @@ esp_err_t grayHandler(httpd_req_t* req) {
 }
 
 esp_err_t indexHandler(httpd_req_t* req) {
-  char html[512];
-  snprintf(html, sizeof(html),
-           "<!doctype html><meta charset=utf-8><title>URRT cam</title>"
-           "<body style='background:#000;color:#fc0;font-family:sans-serif'><h1>URRT camera board</h1>"
-           "<p>sensor %s (PID %s) %s</p><p><a style='color:#fc0' href='/status'>/status</a> | "
-           "<a style='color:#fc0' href='/gray.jpg'>/gray.jpg</a> (what the QR decoder sees) | "
-           "<a style='color:#fc0' href='http://%s:%u/stream'>stream</a></p>",
-           g_health.sensor, g_health.pid, g_cameraOk ? "OK" : g_cameraError, g_health.ip, STREAM_PORT);
   httpd_resp_set_type(req, "text/html");
-  return httpd_resp_send(req, html, HTTPD_RESP_USE_STRLEN);
+  httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+  return httpd_resp_send(req, kBenchPage, HTTPD_RESP_USE_STRLEN);
+}
+
+// POST /bench?qr=0|1&mot=0|1&pm=hold|goto|scan|track&ang=deg  (bench page, camera alone)
+esp_err_t benchHandler(httpd_req_t* req) {
+  char q[96] = "";
+  httpd_req_get_url_query_str(req, q, sizeof(q));
+  char v[12];
+  auto has = [&](const char* key) { return httpd_query_key_value(q, key, v, sizeof(v)) == ESP_OK; };
+  LinkConfig c;
+  c.qr = has("qr") && v[0] == '1';
+  c.motion = has("mot") && v[0] == '1';
+  c.panMode = has("pm") ? boardlink::parsePanMode(v) : boardlink::PanMode::Hold;
+  c.panDeg = has("ang") ? static_cast<float>(atof(v)) : boardlink::kPanHomeDeg;
+  linkSetBench(c);
+  JsonDocument doc;
+  const bool s3 = linkConfig().source == CfgSource::S3;
+  doc["ok"] = true;
+  doc["applied"] = !s3;
+  doc["note"] = s3 ? "the S3 is connected and in charge; bench settings ignored" : "bench settings applied";
+  return sendJson(req, doc);
 }
 
 #define PART_BOUNDARY "urrtframe"
@@ -211,22 +253,24 @@ esp_err_t streamHandler(httpd_req_t* req) {
   return res;
 }
 
-void route(httpd_handle_t server, const char* uri, esp_err_t (*handler)(httpd_req_t*)) {
+void route(httpd_handle_t server, const char* uri, esp_err_t (*handler)(httpd_req_t*), httpd_method_t method = HTTP_GET) {
   httpd_uri_t u = {};
   u.uri = uri;
-  u.method = HTTP_GET;
+  u.method = method;
   u.handler = handler;
   httpd_register_uri_handler(server, &u);
 }
 
 void httpBegin() {
   httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
+  cfg.core_id = CAM_HTTP_CORE;  // keep JPEG encoding off the vision core
   cfg.server_port = HTTP_PORT;
   cfg.ctrl_port = 32768;
   if (httpd_start(&g_ctrlServer, &cfg) == ESP_OK) {
     route(g_ctrlServer, "/", indexHandler);
     route(g_ctrlServer, "/status", statusHandler);
     route(g_ctrlServer, "/gray.jpg", grayHandler);
+    route(g_ctrlServer, "/bench", benchHandler, HTTP_POST);
   }
   // Separate server: a stream handler occupies its server task while a client watches.
   cfg.server_port = STREAM_PORT;
@@ -257,6 +301,26 @@ void tryNextNetwork(uint32_t nowMs) {
   Serial.printf("Wi-Fi: trying \"%s\"\n", kNetworks[g_netIdx].ssid);
 }
 
+bool g_otaOn = false;
+
+// Wireless updates (tools/cam_ota.sh). Started once, after the first Wi-Fi
+// connection; never without a password.
+void otaBegin() {
+  if (!CAM_OTA_ENABLED || strlen(CAM_OTA_PASSWORD) < 8) {
+    Serial.println("OTA: off (set CAM_OTA_PASSWORD, 8+ characters, in src/cam/secrets.h)");
+    return;
+  }
+  ArduinoOTA.setHostname(CAM_HOSTNAME);
+  ArduinoOTA.setPassword(CAM_OTA_PASSWORD);
+  ArduinoOTA.setMdnsEnabled(false);  // mDNS is managed in wifiPoll()
+  ArduinoOTA.onStart([] { Serial.println("OTA: update starting"); });
+  ArduinoOTA.onEnd([] { Serial.println("OTA: done, rebooting"); });
+  ArduinoOTA.onError([](ota_error_t e) { Serial.printf("OTA: error %u\n", static_cast<unsigned>(e)); });
+  ArduinoOTA.begin();
+  g_otaOn = true;
+  Serial.printf("OTA: ready on %s port 3232\n", g_health.ip);
+}
+
 void wifiPoll(uint32_t nowMs) {
   const bool up = WiFi.status() == WL_CONNECTED;
   if (up && !g_wifiUp) {
@@ -265,6 +329,7 @@ void wifiPoll(uint32_t nowMs) {
     Serial.printf("stream: http://%s:%u/stream  status: http://%s/status\n", g_health.ip, STREAM_PORT, g_health.ip);
     MDNS.end();
     if (MDNS.begin(CAM_HOSTNAME)) MDNS.addService("http", "tcp", HTTP_PORT);
+    if (!g_otaOn) otaBegin();
   } else if (!up && g_wifiUp) {
     g_health.ip[0] = '\0';
     g_netTryMs = nowMs;
@@ -295,9 +360,17 @@ void setup() {
     if (!g_cameraError[0]) strlcpy(g_cameraError, "vision buffers could not be allocated", sizeof(g_cameraError));
     Serial.printf(" CAMERA FAILED: %s. Check docs/05_pin_maps.md before changing anything.\n", g_cameraError);
   }
+  panBegin();
+  if (PAN_SERVO_FITTED) {
+    Serial.printf(" pan servo on GPIO%d, goes home %.0f deg, range %.0f..%.0f deg, then holds for the S3\n",
+                  PAN_PIN, boardlink::kPanHomeDeg, boardlink::kPanMinDeg, boardlink::kPanMaxDeg);
+  } else {
+    Serial.println(" pan servo: not fitted (PAN_SERVO_FITTED = false)");
+  }
   Serial.println("==================================================");
 
   linkBegin();
+  vTaskPrioritySet(nullptr, CAM_LOOP_TASK_PRIORITY);  // see config_cam.h "Task layout"
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(CAM_HOSTNAME);
@@ -312,5 +385,7 @@ void loop() {
   wifiPoll(now);
   g_health.fps = visionStats().fps;
   linkPoll(now, g_health);
+  panUpdate(now, linkConfig());
+  if (g_otaOn) ArduinoOTA.handle();  // blocks while an update is being received
   delay(5);
 }

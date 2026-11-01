@@ -79,6 +79,18 @@ void test_link_rejects_garbage_and_overflow() {
   TEST_ASSERT_EQUAL_STRING(ok, la.line());
 }
 
+void test_pan_names_roundtrip_and_fail_to_hold() {
+  using boardlink::PanMode;
+  const PanMode modes[] = {PanMode::Hold, PanMode::Goto, PanMode::Scan, PanMode::Track, PanMode::Pulse};
+  for (PanMode m : modes) {
+    TEST_ASSERT_TRUE(boardlink::parsePanMode(boardlink::panModeName(m)) == m);
+  }
+  TEST_ASSERT_TRUE(boardlink::parsePanMode("spin") == PanMode::Hold);
+  TEST_ASSERT_TRUE(boardlink::parsePanMode(nullptr) == PanMode::Hold);
+  TEST_ASSERT_TRUE(boardlink::parsePanState("settled") == boardlink::PanState::Settled);
+  TEST_ASSERT_TRUE(boardlink::parsePanState("bogus") == boardlink::PanState::Absent);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_ipv4_strict_accepts_valid);
@@ -87,5 +99,6 @@ int main() {
   RUN_TEST(test_ipv4_extract_from_text);
   RUN_TEST(test_link_frame_roundtrip);
   RUN_TEST(test_link_rejects_garbage_and_overflow);
+  RUN_TEST(test_pan_names_roundtrip_and_fail_to_hold);
   return UNITY_END();
 }

@@ -60,7 +60,16 @@ not connected to drivers. Nothing connected to the S3 except the USB cable.
    ```
 
    `/dev/ttyACM0`, `/dev/ttyUSB0` and `COM5` in this guide are **examples**. Use the port
-   listed for your board. Plug into the port labelled "COM"/"UART" (USB-UART bridge).
+   listed for your board, and pick the build that matches it:
+
+   | `device list` shows | Port | Build to use |
+   |---|---|---|
+   | `USB VID:PID=303A:1001`, "USB JTAG/serial debug unit" | the S3's own (native) USB | `s3_main_nativeusb` |
+   | a CP210x / CH340 / CH343 bridge (`1a86:55d3` "USB Single Serial" is a CH343 and shows up as `/dev/ttyACM0`) | "COM"/"UART" bridge | `s3_main` |
+
+   Both builds upload over either port. Only the serial log goes to one or the other, so with the
+   wrong build the monitor stays blank. The team's S3 is on its CH343 bridge port, so the commands
+   below use `s3_main`. Swap in `s3_main_nativeusb` if you move the cable to the native port.
 3. Create the S3 secrets (bench AP for now):
 
    ```bash
@@ -78,28 +87,33 @@ not connected to drivers. Nothing connected to the S3 except the USB cable.
    tools/pio.sh run -e s3_main -t uploadfs --upload-port /dev/ttyACM0
    ```
 
-5. Open the serial monitor and press the board's RST button:
+5. Open the serial monitor:
 
    ```bash
    tools/pio.sh device monitor -e s3_main --port /dev/ttyACM0
    ```
 
+   The board may print its banner before the monitor has opened, so type `info` and press Enter
+   to print it again, then `events` for the boot events. Only one program can hold the port: close
+   the monitor (Ctrl+C) before the next upload.
+
 **Expected** (from the firmware source):
 
 - a banner with `URRT rover main controller  s3-main 0.1.0`, the chip model (`ESP32-S3`), core
-  count, CPU MHz and the eFuse MAC
+  count, CPU MHz, the MAC (as esptool prints it) and `PSRAM not enabled in this build` (the S3 does
+  not use PSRAM even if the module has some)
 - `pin map: PROVISIONAL`, `motor driver: MD30C | E-stop sense: fitted | battery sense: not fitted`
 - `sonars fitted: FC=1 FL=0 FR=0 REAR=0`
 - `motor outputs start DISABLED`
 - an event `BOOT -> ESTOP: E-stop pressed (or sense wire open) at boot`. **This is correct**:
   GPIO21 is not wired yet, and an open sense wire counts as pressed (fail-safe).
-- a warning that the rear sonar is not fitted, then Wi-Fi falling back to the bench AP
-  `URRT-ROVER`
+- a warning that the rear sonar is not fitted, then Wi-Fi: with `WIFI_STA_SSID` set, an event
+  `Wi-Fi STA <ssid> ip <address>`; otherwise (or if the join fails) the bench AP `URRT-ROVER`
 
-Type `status` and press Enter. If the native-USB port is the only one that shows a log, rebuild
-with `-e s3_main_nativeusb` and tell us.
+Type `status` and press Enter, then `sonar`. With nothing wired the front-center sonar must say
+`no_echo`. Any distance here is a fault: stop and report it.
 
-**Send back:** the full boot log and the output of `status`.
+**Send back:** the output of `info`, `events` and `status`.
 
 ## Stage 2: hardwired E-stop (motors still disconnected)
 
@@ -123,7 +137,9 @@ driver branch fuses **F5/F6 out** and the drivers disconnected.
    should say `live` and Connection → Telemetry median should be close to 75 ms.
 2. (Arena or lab network) Fill in `WIFI_STA_SSID` / `WIFI_STA_PASSWORD` in `src/s3/secrets.h` and
    re-upload. The boot log prints `Wi-Fi STA <ssid> ip <address>`. Use the IP or
-   `http://urrt-rover.local/`. For competition builds set `WIFI_SOFTAP_FALLBACK = false` in
+   `http://urrt-rover.local/`. Any computer on the same router works, including one on Ethernet.
+   On Linux, `getent hosts urrt-rover.local` prints the address. The network must be 2.4 GHz.
+   For competition builds set `WIFI_SOFTAP_FALLBACK = false` in
    `src/s3/config_network.h` (rule 1.3.1: no unauthorised transmitters).
 3. Optional, recommended: battery divider (100 k / 22 k) on GPIO1. Set `BATTERY_SENSE_FITTED = true`,
    re-upload, compare `status` with a multimeter at the battery, and set
@@ -148,38 +164,10 @@ For each sensor: wire it with its 1 k / 1.8 k echo divider, set its entry in `SO
 
 **Send back:** a table of ruler distance vs reported mm for every sensor, plus the step 3 and 4 observations.
 
-## Stage 5: S3 detects the PCA9685 on I²C
+## Stage 5: ESP32-CAM and its link to the S3
 
-Wire the PCA9685 per [03_electrical.md](03_electrical.md) §3.7: **VCC from the S3 3V3**, SDA
-GPIO8, SCL GPIO9, GND. No servo yet. Console:
-
-```
-i2cscan
-```
-
-Expected: a device at `0x40` (and possibly `0x70`). If nothing answers, check the wiring and
-whether your header really has GPIO8/9 there. If another address appears, set
-`PCA9685_I2C_ADDR`.
-
-**Send back:** the `i2cscan` output.
-
-## Stage 6: SG90 travel through the PCA9685 (motors disconnected)
-
-Servo on channel 0, V+ fed from the "servo 5 V" buck on the motor bus (press ARM to power it).
-Drive fuses F5/F6 stay out. **Detach the camera from the bracket for the first test.**
-
-1. In IDLE, type `pulse 1500`. The servo should go to about mid-travel.
-2. Step outward slowly: `pulse 1400`, `pulse 1300` … and `pulse 1600`, `pulse 1700` … Stop
-   **before** the horn hits a mechanical stop or the servo buzzes against it. Note the last good
-   pulse at each end. The firmware never goes beyond 500–2500 µs.
-3. Set `SERVO_US_AT_0_DEG` / `SERVO_US_AT_180_DEG` from your measurements
-   (`src/s3/config_tuning.h`), rebuild and upload, then try `pan 45`, `pan 90`, `pan 135`.
-4. Refit the camera. Move between the soft limits and check that the ribbon cable cannot snag or
-   stretch. Widen `SERVO_SOFT_MIN_DEG` / `MAX` only if it is clear.
-
-**Send back:** the end pulses, the angles you settled on, and whether the cable is clear.
-
-## Stage 7: ESP32-CAM: stream, QR, pan-aware motion
+The camera board runs the stream, QR decoding, motion detection **and the pan servo**. The S3
+tells it what to do over a 3-wire serial link, and learns the camera's IP the same way.
 
 1. Copy `src/cam/secrets.example.h` to `src/cam/secrets.h` (same networks as the S3).
 2. Put the board in flash mode (GPIO0 to GND, reset), then upload and monitor (its port
@@ -193,25 +181,98 @@ Drive fuses F5/F6 stay out. **Detach the camera from the bracket for the first t
    tools/pio.sh device monitor -e cam --port /dev/ttyUSB0
    ```
 
-   Remove the GPIO0 jumper and reset.
+   Remove the GPIO0 jumper and reset. A plain FTDI adapter has no reset line to the board, so
+   software cannot restart it: press RST yourself. Also, every esptool command leaves the chip
+   in esptool's flasher, sometimes at 460800 baud. If the next upload fails with
+   `No serial data received`, put it in flash mode again (GPIO0 to GND, press RST).
 3. **Expected:** a banner with `PSRAM found`, then either `camera OK: sensor <name>, PID 0x....`
-   or `CAMERA FAILED: <reason>`. **If it failed, or the PID is not one you expected, stop and send
-   the log plus a close photo of the camera module and its ribbon markings.** Then
-   `Wi-Fi: connected ...` with the stream and status URLs.
-4. Open `http://<cam-ip>/gray.jpg`. If the image is scrambled noise but the stream looks right,
-   flip `CAM_RGB565_HIGH_BYTE_FIRST`. If upside down or mirrored, set `CAM_VFLIP` / `CAM_HMIRROR`.
-5. Wire the UART link (CAM 13/14 ↔ S3 41/42, common GND). The S3 log shows
-   `camera link up (<ip>)`; the dashboard Camera card shows link `ok`, the fps and the stream.
-6. **QR:** generate a QR code holding an IPv4 address (`qrencode -t ANSIUTF8 "192.168.4.2"` in a
-   terminal, or any generator) and show it to the camera. TELEOP → SCAN QR + PING. The camera
-   serial prints `QR "..." -> ip ...` and the dashboard shows the text and the IP.
-7. **Pan-aware motion:** TELEOP → DETECTOR ON. Wave a hand: Target `yes`. Then move the pan
-   with the slider while nothing moves in view. There should be **no** detection while the servo
-   moves, and the camera takes a fresh baseline after it settles.
-8. Check `MOTION_PAN_DIRECTION`: put the target on the **right** of the image during the AUTO
-   motion mission (stage 11). The pan should turn toward it. If it turns away, set the constant to `-1`.
+   or `CAMERA FAILED: <reason>`, then `pan servo on GPIO2 ...`. **If the camera failed, or
+   the PID is not one you expected, stop and send the log plus a close photo of the camera module
+   and its ribbon markings.** Then `Wi-Fi: connected ...` with the stream and status URLs.
+4. Wire the link, **only these three wires** (both boards keep their own USB power):
 
-**Send back:** the camera boot log, `/status` JSON, a `/gray.jpg` screenshot and the results of steps 6 and 7.
+   | ESP32-CAM | S3 |
+   |---|---|
+   | IO13 (link RX) | GPIO41 (TX) |
+   | IO14 (link TX) | GPIO42 (RX) |
+   | GND | GND |
+
+   Check both boards' pin labels first; if the S3 has no pins marked 41/42, stop and send a
+   photo. Keep the camera's microSD slot empty (it shares IO13/IO14).
+
+   **Bench power:** the ESP32-CAM-MB covers IO13/IO14, so take the camera off it and power it
+   by wire: camera **5V** → DevKit **VIN**, plus a camera GND → DevKit GND. The team's S3 board's
+   5V pin does **not** output USB power (the camera stayed dark on it). Never use the camera's
+   VCC or 3V3 pins as a power input. On the rover the camera gets 5 V from the logic buck.
+5. **Expected:** the S3 logs `camera link up (<ip>)`. The dashboard Camera card shows link `ok`,
+   the fps and the stream (close any other tab showing the stream: one viewer at a time). The
+   pan line shows `goto · settled`.
+
+**Wireless camera updates.** Once a firmware with OTA is on the camera (its boot log says
+`OTA: ready on <ip> port 3232`), update it over Wi-Fi with no MB and no buttons:
+
+```bash
+tools/cam_ota.sh 192.168.0.207
+```
+
+The password comes from `CAM_OTA_PASSWORD` in `src/cam/secrets.h`; without one, OTA stays off.
+
+**Camera alone (bench mode). Before the link is wired, open `http://<cam-ip>/` (the camera's
+own page). It shows the stream and lets you switch QR decoding, motion detection and the pan
+mode on and off, with live results. The page only works while the S3 is silent: once the link is
+up, the camera follows the S3 and the page says so. Closing the page switches everything off
+within 3 s. The team's ESP32-CAM-MB has IO0 and RST buttons but no auto-reset: hold IO0 and
+press RST before an upload, then press RST alone to run the new firmware.
+
+**Send back:** the camera boot log and the S3 `events` after wiring.
+
+## Stage 6: MG996R pan servo on the ESP32-CAM (motors disconnected)
+
+Wiring ([03_electrical.md](03_electrical.md) §3.7): servo **signal (orange) → ESP32-CAM IO2**,
+servo **red → "servo 5 V" buck**, servo **brown → GND**, and that GND tied to the ESP32-CAM GND.
+On the bench a separate 5 V supply rated **≥ 3 A** can stand in for the buck (an MG996R stalls at
+about 2.5 A). **Never power the servo from the ESP32-CAM's or the DevKit's 5V/VIN pin:** a stalled
+MG996R browns the boards out. **Detach the camera
+from the bracket for the first test.**
+
+1. Reset the camera with the servo connected. It must boot normally and the servo should go to
+   about mid-travel (home 90°) once. If the board no longer boots or the servo twitches hard at
+   power-up, stop and report it: IO2 is a strapping pin.
+2. In IDLE on the S3 console, type `pulse 1500`. The servo should sit at about mid-travel. Then
+   `pulse 1700`: it should move a little and **hold**. If it keeps turning, it is the 360°
+   continuous-rotation version of the MG996R, which cannot hold an angle: stop and get the 180°
+   type.
+3. Step outward slowly: `pulse 1400`, `pulse 1300` … and `pulse 1600`, `pulse 1700` … Stop
+   **before** the horn hits a mechanical stop or the servo buzzes against it. Note the last good
+   pulse at each end. The firmware never goes beyond 500–2500 µs.
+4. Set `SERVO_US_AT_0_DEG` / `SERVO_US_AT_180_DEG` in `src/cam/config_cam.h` from your
+   measurements, upload the camera again, then try `pan 45`, `pan 90`, `pan 135` (or the
+   dashboard slider).
+5. Refit the camera. Move between the limits and check that the ribbon cable cannot snag or
+   stretch. Widen `kPanMinDeg` / `kPanMaxDeg` (`lib/rover_common/src/rover_protocol.h`, used by
+   both boards) only if it is clear.
+
+**Send back:** the end pulses, the angles you settled on, and whether the cable is clear.
+
+## Stage 7: camera tasks: image, QR, pan-aware motion
+
+1. Point the camera at a scene with detail and open `http://<cam-ip>/gray.jpg`. If the image is
+   scrambled noise but the stream looks right, flip `CAM_RGB565_HIGH_BYTE_FIRST`. If upside down
+   or mirrored, set `CAM_VFLIP` / `CAM_HMIRROR` (all in `src/cam/config_cam.h`).
+2. **QR:** show the camera a QR code holding an IPv4 address (any generator; use the laptop's own
+   IP so the ping can succeed). TELEOP → SCAN QR + PING. The camera serial prints
+   `QR "..." -> ip ...`, the dashboard shows the text and the IP, and the S3 pings it.
+3. **QR search:** AUTO `qr_ping` → START with the code off to one side. The camera sweeps its pan
+   (`scan`) until it decodes the code, then the S3 pings.
+4. **Pan-aware motion:** TELEOP → DETECT ON. Wave a hand: Target `yes`. Then move the pan with the
+   slider while nothing moves in view. There should be **no** detection while the servo moves; the
+   camera takes a fresh baseline after it settles.
+5. **Tracking:** AUTO `motion` → START. With nothing moving, the camera sweeps. Walk slowly across
+   its view: the pan line shows `track · ... · tracking` and the camera turns to follow. If it
+   turns **away** from the target, set `MOTION_PAN_DIRECTION = -1` in `src/cam/config_cam.h`.
+   Keep moving for 5 s: the mission ends COMPLETE.
+
+**Send back:** a `/gray.jpg` screenshot and the results of steps 2–5.
 
 ## Stage 8: motor drivers and motors, wheels raised
 

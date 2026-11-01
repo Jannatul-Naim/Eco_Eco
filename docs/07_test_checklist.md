@@ -25,15 +25,17 @@ your name and the actual value. Build success is not a test result. Stage number
 | 4.4 | Sonar rear | 100 / 200 / 500 mm | each within ± 10 mm | | |
 | 4.5 | | no target / Echo unplugged | `out_of_range` / `no_echo` / stale, never a fake value | | |
 | 4.6 | Rear interlock | obstacle at 150 mm, rear not fitted, rear stale | reverse blocked in all three | | |
-| 5.1 | I²C | `i2cscan` | 0x40 found | addr = | |
-| 6.1 | SG90 via PCA9685, motors disconnected | end pulses found without hitting stops | pulses noted | µs = | |
-| 6.2 | | soft range with camera fitted | cable never snags | ° = | |
-| 7.1 | Camera | boot | camera OK, sensor PID recorded | PID = | |
-| 7.2 | | stream in dashboard | live picture, fps badge | fps = | |
-| 7.3 | | `/gray.jpg` | correct grey image (byte order OK) | | |
-| 7.4 | | UART link | S3 shows link `ok`, `rx_bad` not climbing | | |
-| 7.5 | | QR → IP shown | decoded text + IPv4 in the dashboard | | |
-| 7.6 | | pan moves, scene static | **no** motion detection during or right after a pan move | | |
+| 5.1 | Camera | boot | camera OK, sensor PID recorded | PID = | |
+| 5.2 | | UART link | S3 shows link `ok`, `rx_bad` not climbing | | |
+| 5.3 | | stream in dashboard | live picture, fps badge | fps = | |
+| 6.1 | MG996R on ESP32-CAM IO2, motors disconnected | camera boots with the servo connected; `pulse 1500` then `pulse 1700` | no boot failure, no hard twitch; servo **holds** a position (180° type, not 360° continuous) | | |
+| 6.2 | | end pulses found without hitting stops | pulses noted | µs = | |
+| 6.3 | | range with camera fitted | cable never snags | ° = | |
+| 7.1 | Camera tasks | `/gray.jpg` of a detailed scene | correct grey image (byte order OK) | | |
+| 7.2 | | QR → IP shown, ping sent | decoded text + IPv4 in the dashboard | | |
+| 7.3 | | AUTO `qr_ping` with the code off-centre | camera sweeps and decodes | | |
+| 7.4 | | pan moves, scene static | **no** motion detection during or right after a pan move | | |
+| 7.5 | | AUTO `motion` | camera turns **toward** a moving target, 5 s → COMPLETE | | |
 | 8.1 | Motors, **wheels raised** | `drive 0.2 0.2` | both sides forward | | |
 | 8.2 | | `drive 0.2 -0.2` | spins right | | |
 | 8.3 | | reverse without rear sonar | blocked, event logged | | |

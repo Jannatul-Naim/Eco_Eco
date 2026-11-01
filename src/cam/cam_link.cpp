@@ -3,12 +3,15 @@
 #include <ArduinoJson.h>
 
 #include "config_cam.h"
+#include "pan.h"
 #include "rover_protocol.h"
 
 namespace {
 boardlink::LineAssembler g_rx;
 LinkConfig g_cfg;
 uint32_t g_cfgMs = 0;
+LinkConfig g_bench;
+uint32_t g_benchMs = 0;
 uint32_t g_txSeq = 0;
 uint32_t g_lastHbMs = 0;
 portMUX_TYPE g_cfgMux = portMUX_INITIALIZER_UNLOCKED;
@@ -38,9 +41,10 @@ void handleLine(const char* line, size_t len, uint32_t nowMs) {
   LinkConfig c;
   c.qr = (doc["qr"] | 0) != 0;
   c.motion = (doc["mot"] | 0) != 0;
-  const char* pan = doc["pan"] | "absent";
-  c.pan = !strcmp(pan, "moving") ? PanInfo::Moving : (!strcmp(pan, "settled") ? PanInfo::Settled : PanInfo::Absent);
-  c.panEpoch = doc["ep"] | 0u;
+  c.panMode = boardlink::parsePanMode(doc["pm"] | "hold");
+  c.panDeg = doc["ang"] | boardlink::kPanHomeDeg;
+  c.pulseUs = doc["pul"] | 0.0f;
+  c.source = CfgSource::S3;
   c.fresh = true;
   portENTER_CRITICAL(&g_cfgMux);
   g_cfg = c;
@@ -57,13 +61,26 @@ void linkBegin() {
 
 LinkConfig linkConfig() {
   portENTER_CRITICAL(&g_cfgMux);
-  LinkConfig c = g_cfg;
+  const LinkConfig c = g_cfg;
   const uint32_t at = g_cfgMs;
+  const LinkConfig b = g_bench;
+  const uint32_t benchAt = g_benchMs;
   portEXIT_CRITICAL(&g_cfgMux);
-  if (at == 0 || millis() - at > LINK_CFG_STALE_MS) {
-    c = LinkConfig();  // S3 silent: detectors off, treat pan as unknown/absent
-  }
-  return c;
+  const uint32_t now = millis();
+  if (at != 0 && now - at <= LINK_CFG_STALE_MS) return c;  // the S3 is in charge
+  if (benchAt != 0 && now - benchAt <= BENCH_KEEPALIVE_MS) return b;
+  return LinkConfig();  // nobody: detectors off, pan holds where it is
+}
+
+void linkSetBench(const LinkConfig& c) {
+  LinkConfig b = c;
+  if (b.panMode == boardlink::PanMode::Pulse) b.panMode = boardlink::PanMode::Hold;  // calibration stays on the S3
+  b.source = CfgSource::Bench;
+  b.fresh = true;
+  portENTER_CRITICAL(&g_cfgMux);
+  g_bench = b;
+  g_benchMs = millis();
+  portEXIT_CRITICAL(&g_cfgMux);
 }
 
 void linkPoll(uint32_t nowMs, const CamHealth& h) {
@@ -74,6 +91,8 @@ void linkPoll(uint32_t nowMs, const CamHealth& h) {
   if (nowMs - g_lastHbMs < LINK_HB_PERIOD_MS) return;
   g_lastHbMs = nowMs;
   const LinkConfig c = linkConfig();
+  const PanStatus p = panStatus();
+  // Worst case is ~210 bytes; boardlink::kMaxLine is 240.
   JsonDocument doc;
   doc["v"] = boardlink::kProtocolVersion;
   doc["t"] = boardlink::kTypeHeartbeat;
@@ -86,7 +105,12 @@ void linkPoll(uint32_t nowMs, const CamHealth& h) {
   doc["qr"] = c.qr ? 1 : 0;
   doc["mot"] = c.motion ? 1 : 0;
   doc["cam"] = h.cameraOk ? 1 : 0;
-  doc["rst"] = h.resetReason;
+  doc["pm"] = boardlink::panModeName(p.mode);
+  doc["pan"] = boardlink::panStateName(p.state);
+  doc["ang"] = roundf(p.angle * 10.0f) / 10.0f;
+  doc["tgt"] = roundf(p.target * 10.0f) / 10.0f;
+  doc["pul"] = static_cast<int>(p.pulseUs);
+  doc["trk"] = p.tracking ? 1 : 0;
   sendJson(doc);
 }
 

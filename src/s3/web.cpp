@@ -10,6 +10,7 @@
 #include "config_network.h"
 #include "config_pins.h"
 #include "config_tuning.h"
+#include "console.h"
 #include "events.h"
 #include "net.h"
 #include "rover.h"
@@ -45,11 +46,15 @@ void fillStatus(JsonObject o, const RoverSnapshot& s) {
   o["ok"] = true;
   o["proto"] = 1;
   o["fw"] = FW_VERSION;
+  o["reset_reason"] = resetReasonName();
   o["uptime_ms"] = s.nowMs;
   JsonObject c = o["connection"].to<JsonObject>();
   c["wifi"] = n.mode;
-  c["ssid"] = n.ssid;
-  c["ip"] = n.ip;
+  // ArduinoJson 7.3+ keeps only a pointer to a `const char[N]` (it takes it for
+  // a string literal). `n` is a local that is gone by serialisation, so cast to
+  // `const char*`, which ArduinoJson copies.
+  c["ssid"] = static_cast<const char*>(n.ssid);
+  c["ip"] = static_cast<const char*>(n.ip);
   setOrNull(c, "rssi", strcmp(n.mode, "sta") == 0, n.rssi);
   c["hostname"] = ROVER_HOSTNAME;
   c["ws_clients"] = g_ws.count();
@@ -132,14 +137,16 @@ void fillSensors(JsonObject o, const RoverSnapshot& s) {
   c["rx_ok"] = cs.rxOk;
   c["rx_bad"] = cs.rxBad;
 
-  JsonObject pan = o["pan"].to<JsonObject>();
+  JsonObject pan = o["pan"].to<JsonObject>();  // the servo is on the camera board
   pan["present"] = s.panPresent;
-  pan["state"] = panStateName(s.pan);
-  pan["angle"] = r2(s.panDeg);
-  pan["target"] = r2(s.panTarget);
-  pan["pulse_us"] = static_cast<int>(s.panPulseUs);
-  pan["soft_min"] = SERVO_SOFT_MIN_DEG;
-  pan["soft_max"] = SERVO_SOFT_MAX_DEG;
+  pan["mode"] = panModeName(cs.panMode);
+  pan["state"] = panStateName(s.panPresent ? cs.panState : PanState::Absent);
+  pan["angle"] = r2(cs.panDeg);
+  pan["target"] = r2(cs.panTarget);
+  pan["pulse_us"] = static_cast<int>(cs.panPulseUs);
+  pan["tracking"] = s.panPresent && cs.panTracking;
+  pan["soft_min"] = boardlink::kPanMinDeg;
+  pan["soft_max"] = boardlink::kPanMaxDeg;
   pan["t_ms"] = s.nowMs;
 
   JsonObject q = o["qr"].to<JsonObject>();
@@ -178,7 +185,7 @@ void fillSensors(JsonObject o, const RoverSnapshot& s) {
   const AudioStatus a = audioStatus(s.nowMs);
   JsonObject au = o["audio"].to<JsonObject>();
   au["online"] = a.online;
-  au["ip"] = a.ip;
+  au["ip"] = static_cast<const char*>(a.ip);  // local copy: see fillStatus()
   au["mic_level"] = a.micLevel;
   au["clients"] = a.clients;
   au["speaker_active"] = a.speakerActive;
@@ -220,9 +227,12 @@ using CommandFn = CmdResult (*)(JsonVariantConst body);
 
 // POST route: parses an optional JSON body, runs the command under the rover
 // lock, and replies {"ok":..,"message"|"error":..,"mode":..,"state":..}.
+// Command routes match their path EXACTLY. The library's default for a plain
+// string also matches "<path>/anything", which made POST /api/estop/reset hit
+// the /api/estop handler: RESET E-STOP engaged the E-stop instead.
 void postRoute(const char* path, CommandFn fn) {
   g_server.on(
-      path, HTTP_POST,
+      AsyncURIMatcher::exact(path), HTTP_POST,
       [fn](AsyncWebServerRequest* req) {
         if (req->contentLength() > kMaxBody) return sendError(req, 413, "body too large");
         JsonDocument body;
@@ -390,8 +400,8 @@ void webBegin(bool filesystemOk) {
     doc["prox_target_mm"] = PROX_TARGET_MM;
     doc["prox_tol_mm"] = PROX_TOLERANCE_MM;
     doc["motion_goal_ms"] = MOTION_GOAL_MS;
-    doc["servo_soft_min"] = SERVO_SOFT_MIN_DEG;
-    doc["servo_soft_max"] = SERVO_SOFT_MAX_DEG;
+    doc["servo_soft_min"] = boardlink::kPanMinDeg;
+    doc["servo_soft_max"] = boardlink::kPanMaxDeg;
     doc["estop_sense_fitted"] = ESTOP_SENSE_FITTED;
     doc["battery_sense_fitted"] = BATTERY_SENSE_FITTED;
     doc["lane_end_sensor_fitted"] = LANE_END_SENSOR_FITTED;
@@ -411,7 +421,7 @@ void webBegin(bool filesystemOk) {
   // The software E-stop cuts outputs and queues the latch before taking the
   // lock, so it works even if the lock is momentarily unavailable.
   g_server.on(
-      "/api/estop", HTTP_POST,
+      AsyncURIMatcher::exact("/api/estop"), HTTP_POST,  // exact: see postRoute()
       [](AsyncWebServerRequest* req) {
         g_rover.requestEstop();
         CmdResult r{true, 200, "E-stop engaged (outputs cut; latch pending)"};

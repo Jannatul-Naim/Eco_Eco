@@ -7,8 +7,6 @@
 #include <LittleFS.h>
 #include <esp_task_wdt.h>
 
-#include "config_hardware.h"
-#include "config_pins.h"
 #include "config_tuning.h"
 #include "console.h"
 #include "events.h"
@@ -35,29 +33,20 @@ void controlTask(void*) {
     }
   }
 }
-
-void banner() {
-  Serial.println();
-  Serial.println("==================================================");
-  Serial.printf(" URRT rover main controller  %s\n", FW_VERSION);
-  const uint64_t mac = ESP.getEfuseMac();
-  Serial.printf(" chip %s rev %d, %d cores, %lu MHz, eFuse MAC %012llX\n", ESP.getChipModel(), ESP.getChipRevision(),
-                ESP.getChipCores(), static_cast<unsigned long>(ESP.getCpuFreqMHz()), mac);
-  Serial.printf(" pin map: %s (see docs/05_pin_maps.md)\n", ROVER_PINMAP_STATUS);
-  Serial.printf(" motor driver: %s | E-stop sense: %s | battery sense: %s\n",
-                MOTOR_DRIVER_TYPE == DRIVER_BTS7960 ? "BTS7960" : "MD30C", ESTOP_SENSE_FITTED ? "fitted" : "NOT fitted",
-                BATTERY_SENSE_FITTED ? "fitted" : "not fitted");
-  Serial.printf(" sonars fitted: FC=%d FL=%d FR=%d REAR=%d\n", SONAR_FITTED[0], SONAR_FITTED[1], SONAR_FITTED[2],
-                SONAR_FITTED[3]);
-  Serial.println(" motor outputs start DISABLED. Type 'help' for console commands.");
-  Serial.println("==================================================");
-}
 }  // namespace
 
 void setup() {
   Serial.begin(115200);
+#if ARDUINO_USB_CDC_ON_BOOT && ARDUINO_USB_MODE
+  // Native USB (USB-Serial/JTAG): by default a write waits up to 100 ms when
+  // no monitor is reading the port, and events are logged from the control
+  // loop. 1 ms makes HWCDC give up quickly and drop output until the host reads
+  // again. Not 0: in Arduino-ESP32 2.0.17 its retry counter then underflows
+  // and a write can hang for good.
+  Serial.setTxTimeoutMs(1);
+#endif
   delay(300);
-  banner();
+  consolePrintBanner();
 
   RoverLock::init();
   {
