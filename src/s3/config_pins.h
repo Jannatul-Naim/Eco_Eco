@@ -1,9 +1,8 @@
 // ESP32-S3 main controller — GPIO map.
 //
-// *** PROVISIONAL ***  The board is reported as "ESP32 23 2022 V1.3", which
-// does not uniquely identify the dev board. This map assumes an
-// ESP32-S3-DevKitC-1-compatible header (possibly a VCC-GND "YD-ESP32-S3",
-// whose silkscreen reads "YD-ESP32-23 2022-V1.3" — UNCONFIRMED).
+// *** PROVISIONAL ***  The team's board is an ESP32-S3-N16R8 module whose header
+// labels match the ESP32-S3-DevKitC-1 layout (checked from a photo, 1 Nov 2026).
+// Only GPIO10, 11, 21, 41 and 42 have been tested with real wiring so far.
 //
 // Pins deliberately avoided on every S3 module variant:
 //   0, 3, 45, 46  strapping pins

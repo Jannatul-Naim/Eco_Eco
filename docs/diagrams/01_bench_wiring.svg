@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 44 1000 600" role="img" aria-label="Bench wiring. S3 pins 41 and 42 connect to camera IO13 and IO14. S3 pin 10 goes to sonar Trig. Sonar Echo goes through 1 kilo-ohm to S3 pin 11, with 1.8 kilo-ohm from pin 11 to ground. DevKit VIN powers the camera and the sonar. Camera IO2 drives the servo signal. A separate 5 volt supply powers the servo. All grounds join.">
+<style>svg{color:#16171B;background:#fff}text { fill: currentColor; font: 400 12.5px "Barlow", "Segoe UI", system-ui, sans-serif; }
+text.t-h { font: 600 18px "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: .02em; }
+text.t-s { fill: #5A5D65; font-size: 12px; }
+text.t-p { font: 500 12px "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
+text.t-w { font-size: 12px; paint-order: stroke; stroke: #FFFFFF; stroke-width: 4px; stroke-linejoin: round; }
+text.t-z { font: 600 15px "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: .03em; }
+text.c-5 { fill: #D11F1F; }
+text.c-a { fill: #8F6B00; font-weight: 600; }
+.box { fill: #FFFFFF; stroke: currentColor; stroke-width: 1.4; }
+.box-new { fill: #FFF8DC; stroke: #8F6B00; stroke-width: 2.6; }
+.box-stop { fill: none; stroke: #D11F1F; stroke-width: 2.2; }
+.zone-cut { fill: #FFF3C7; }
+.zone-on { fill: #E5F2E9; }
+.wire { fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linejoin: round; stroke-linecap: round; }
+.bus { stroke-width: 4; }
+.w-5 { stroke: #D11F1F; } .w-b { stroke: #0B66C3; } .w-t { stroke: #087F5F; }
+.w-o { stroke: #C25500; } .w-p { stroke: #7338BD; } .w-m { stroke: #B01F7C; }
+.w-a { stroke: #8F6B00; stroke-dasharray: 5 4; }
+.w-mot { stroke: #5A5D65; }
+.thin { stroke-width: 1.6; }
+.dash { stroke-dasharray: 4 4; }
+.dot { fill: currentColor; } .dot-5 { fill: #D11F1F; } .dot-m { fill: #B01F7C; }
+.pin { fill: #FFFFFF; stroke: currentColor; stroke-width: 1.5; }
+.res { fill: #FFFFFF; stroke: #B01F7C; stroke-width: 2; }
+.ah { fill: currentColor; } .ah-5 { fill: #D11F1F; }
+
+</style>
+      <!-- common ground -->
+      <line class="wire bus" x1="30" y1="600" x2="970" y2="600"/>
+      <text x="30" y="628" class="t-z">Common GND: every board, the sonar and the servo supply</text>
+
+      <!-- S3 -->
+      <rect class="box" x="30" y="60" width="170" height="360" rx="5"/>
+      <text class="t-h" x="44" y="88">ESP32-S3</text>
+      <text class="t-s" x="44" y="106">USB to PC</text>
+      <text class="t-p" x="188" y="134" text-anchor="end">41</text>
+      <text class="t-p" x="188" y="169" text-anchor="end">42</text>
+      <text class="t-p" x="188" y="244" text-anchor="end">10</text>
+      <text class="t-p" x="188" y="279" text-anchor="end">11</text>
+      <text class="t-p" x="188" y="344" text-anchor="end">21</text>
+      <text class="t-p" x="188" y="379" text-anchor="end">GND</text>
+      <text class="t-s" x="44" y="362">bench jumper</text>
+      <text class="t-p" x="115" y="408" text-anchor="middle">GND</text>
+      <path class="wire w-a" d="M200 340H220V375H200"/>
+
+      <!-- camera link -->
+      <path class="wire w-b" d="M200 130H430"/>
+      <path class="wire w-t" d="M200 165H430"/>
+      <text class="t-w" x="315" y="122" text-anchor="middle">S3 to camera</text>
+      <text class="t-w" x="315" y="157" text-anchor="middle">camera to S3</text>
+
+      <!-- camera -->
+      <rect class="box" x="430" y="60" width="170" height="220" rx="5"/>
+      <text class="t-h" x="444" y="88">ESP32-CAM</text>
+      <text class="t-s" x="444" y="106">SD slot empty</text>
+      <text class="t-p" x="442" y="134">IO13</text>
+      <text class="t-p" x="442" y="169">IO14</text>
+      <text class="t-p" x="588" y="134" text-anchor="end">IO2</text>
+      <text class="t-p" x="470" y="268" text-anchor="middle">5V</text>
+      <text class="t-p" x="560" y="268" text-anchor="middle">GND</text>
+
+      <!-- camera and DevKit power -->
+      <path class="wire w-5" d="M470 280V400"/>
+      <path class="wire" d="M560 280V400"/>
+      <text class="t-w c-5" x="480" y="378">5 V</text>
+
+      <!-- DevKit -->
+      <rect class="box" x="430" y="400" width="170" height="120" rx="5"/>
+      <text class="t-p" x="470" y="420" text-anchor="middle">VIN</text>
+      <text class="t-p" x="560" y="420" text-anchor="middle">GND</text>
+      <text class="t-h" x="444" y="452">ESP32 DevKit</text>
+      <text class="t-s" x="444" y="470">USB to PC</text>
+      <text class="t-s" x="444" y="487">VIN feeds camera + sonar</text>
+      <text class="t-p" x="515" y="510" text-anchor="middle">GND</text>
+
+      <!-- sonar signals -->
+      <path class="wire w-p" d="M200 240H340V440"/>
+      <text class="t-w" x="268" y="232" text-anchor="middle">Trig</text>
+      <path class="wire w-m" d="M200 275H290V370"/>
+      <path class="wire w-m" d="M290 414V440"/>
+      <text class="t-w" x="248" y="267" text-anchor="middle">Echo</text>
+      <path class="wire w-m" d="M290 335H250V440"/>
+      <path class="wire w-m" d="M250 484V600"/>
+      <rect class="res" x="280" y="370" width="20" height="44" rx="2"/>
+      <rect class="res" x="240" y="440" width="20" height="44" rx="2"/>
+      <text class="t-w" x="306" y="396">1 kΩ</text>
+      <text class="t-w" x="234" y="466" text-anchor="end">1.8 kΩ</text>
+      <circle class="dot-m" cx="290" cy="335" r="4"/>
+      <text class="t-w" x="298" y="330">3.2 V</text>
+
+      <!-- sonar power -->
+      <path class="wire w-5" d="M395 440V345H470"/>
+      <circle class="dot-5" cx="470" cy="345" r="4"/>
+
+      <!-- sonar -->
+      <rect class="box-new" x="270" y="440" width="150" height="90" rx="5"/>
+      <text class="t-p" x="290" y="458" text-anchor="middle">Echo</text>
+      <text class="t-p" x="340" y="458" text-anchor="middle">Trig</text>
+      <text class="t-p" x="395" y="458" text-anchor="middle">VCC</text>
+      <text class="t-h" x="345" y="486" text-anchor="middle">HC-SR04</text>
+      <text class="t-s" x="345" y="503" text-anchor="middle">front-center</text>
+      <text class="t-p" x="345" y="522" text-anchor="middle">GND</text>
+
+      <!-- servo signal -->
+      <path class="wire w-o" d="M600 130H790"/>
+      <text class="t-w" x="695" y="122" text-anchor="middle">servo signal, 50 Hz</text>
+
+      <!-- servo -->
+      <rect class="box-new" x="790" y="60" width="180" height="170" rx="5"/>
+      <text class="t-h" x="804" y="88">MG996R</text>
+      <text class="t-s" x="804" y="106">180° positional type</text>
+      <text class="t-p" x="802" y="134">orange signal</text>
+      <text class="t-p" x="802" y="169">red V+</text>
+      <text class="t-p" x="802" y="204">brown GND</text>
+
+      <!-- servo power: outer loop red, inner loop ground -->
+      <path class="wire w-5" d="M790 165H700V395H790"/>
+      <path class="wire" d="M790 200H745V360H790"/>
+      <path class="wire w-5" d="M700 280H718"/>
+      <path class="wire" d="M727 280H745"/>
+      <path class="wire w-5" d="M718 268V292"/>
+      <path class="wire" d="M727 268V292"/>
+      <circle class="dot-5" cx="700" cy="280" r="4"/>
+      <circle class="dot" cx="745" cy="280" r="4"/>
+      <text class="t-w" x="692" y="276" text-anchor="end">1000 µF</text>
+      <text class="t-w" x="692" y="292" text-anchor="end">+ to red</text>
+
+      <!-- servo supply -->
+      <rect class="box-new" x="790" y="320" width="180" height="110" rx="5"/>
+      <text class="t-p" x="802" y="364">−</text>
+      <text class="t-p" x="802" y="399">+</text>
+      <text class="t-h" x="822" y="352">5 V supply</text>
+      <text class="t-s" x="822" y="371">at least 3 A</text>
+      <text class="t-s" x="822" y="388">never from USB or a board</text>
+      <text class="t-p" x="880" y="420" text-anchor="middle">−</text>
+
+      <!-- ground drops -->
+      <path class="wire" d="M115 420V600"/>
+      <path class="wire" d="M345 530V600"/>
+      <path class="wire" d="M515 520V600"/>
+      <path class="wire" d="M880 430V600"/>
+      <circle class="dot" cx="115" cy="600" r="4.5"/>
+      <circle class="dot-m" cx="250" cy="600" r="4.5"/>
+      <circle class="dot" cx="345" cy="600" r="4.5"/>
+      <circle class="dot" cx="515" cy="600" r="4.5"/>
+      <circle class="dot" cx="880" cy="600" r="4.5"/>
+
+      <!-- pins -->
+      <g class="pins">
+        <circle class="pin" cx="200" cy="130" r="3.5"/><circle class="pin" cx="200" cy="165" r="3.5"/>
+        <circle class="pin" cx="200" cy="240" r="3.5"/><circle class="pin" cx="200" cy="275" r="3.5"/>
+        <circle class="pin" cx="200" cy="340" r="3.5"/><circle class="pin" cx="200" cy="375" r="3.5"/>
+        <circle class="pin" cx="115" cy="420" r="3.5"/>
+        <circle class="pin" cx="430" cy="130" r="3.5"/><circle class="pin" cx="430" cy="165" r="3.5"/>
+        <circle class="pin" cx="600" cy="130" r="3.5"/><circle class="pin" cx="470" cy="280" r="3.5"/><circle class="pin" cx="560" cy="280" r="3.5"/>
+        <circle class="pin" cx="470" cy="400" r="3.5"/><circle class="pin" cx="560" cy="400" r="3.5"/><circle class="pin" cx="515" cy="520" r="3.5"/>
+        <circle class="pin" cx="290" cy="440" r="3.5"/><circle class="pin" cx="340" cy="440" r="3.5"/><circle class="pin" cx="395" cy="440" r="3.5"/><circle class="pin" cx="345" cy="530" r="3.5"/>
+        <circle class="pin" cx="790" cy="130" r="3.5"/><circle class="pin" cx="790" cy="165" r="3.5"/><circle class="pin" cx="790" cy="200" r="3.5"/>
+        <circle class="pin" cx="790" cy="360" r="3.5"/><circle class="pin" cx="790" cy="395" r="3.5"/><circle class="pin" cx="880" cy="430" r="3.5"/>
+      </g>
+    </svg>

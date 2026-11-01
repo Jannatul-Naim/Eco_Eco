@@ -17,7 +17,7 @@ Rulebook constraints that shape this design (Mechanical & Electrical Rulebook V1
 - 3.1: circuits on **soldered veroboard/perfboard or PCB**. No breadboards anywhere on the rover.
 - 3.2: **XT30/XT60/XT90 or Deans** on every power connection between the battery, E-stop, distribution and drivers. Red wire for every positive line, black for ground, any other colour for signals.
 - 3.3: nominal battery ≤ 24 V, fused, secured, and carried and charged in a fire-resistant bag.
-- 3.4: a schematic showing every pin, committed to GitHub with the pin map. **The text diagrams here are a starting point; the team must still draw the schematic** (KiCad, EasyEDA, Fritzing or neat pen and paper).
+- 3.4: a schematic showing every pin, committed to GitHub with the pin map. **The drawings in [diagrams/](diagrams/) (bench wiring, rover power and E-stop, data and timing) and the text diagrams here are a starting point; the team must still draw the schematic** (KiCad, EasyEDA, Fritzing or neat pen and paper).
 - Class A (4WD, no flippers) is assumed, since no flipper hardware exists.
 
 ## 3.1 Bill of materials
@@ -64,12 +64,12 @@ divider so the cap follows the real voltage.
 | # | Part | Qty | Label | Notes |
 |---|---|---|---|---|
 | C1 | ESP32-S3 dev board, marked "ESP32 23 2022 V1.3" | 1 | CONFIRMED (owned); ESP32-S3-N16R8, DevKitC-1 header (photo) | treated as DevKitC-1 compatible, see [05_pin_maps.md](05_pin_maps.md). Photograph both sides and the header silkscreen before wiring. |
-| C2 | ESP32-CAM assembly with "RHYX M21-45" camera | 1 | CONFIRMED (owned); **sensor UNKNOWN** | AI-Thinker layout assumed; GC2145-family RGB565 is only a hypothesis. The firmware reads the sensor PID at boot. |
+| C2 | ESP32-CAM assembly with "RHYX M21-45" camera | 1 | CONFIRMED (owned); GC2145, PID 0x2145 at boot | AI-Thinker layout confirmed by a working camera init. |
 | C3 | ESP32-CAM-MB board (shows up as an FTDI FT232R, `0403:6001`), to flash the ESP32-CAM | 1 | CONFIRMED (owned) | the ESP32-CAM has no USB port. This MB has **no auto-reset**: hold IO0, press RST to flash; press RST alone to run |
 | C4 | HC-SR04 ultrasonic sensor | 4 | **1 CONFIRMED**, 3 to buy | front-center, front-left, front-right, rear. Fit order: front-center, then **rear** (enables reverse), then left/right. |
 | C5 | Echo divider per sonar: 1 kΩ series + 1.8 kΩ to GND (5 V → 3.2 V) | 4 sets | RECOMMENDED | **never** connect 5 V Echo straight to an ESP32 pin |
 | C6 | ~~PCA9685 PWM board~~ | 0 | **not needed** | since 1 Nov 2026 the ESP32-CAM drives the servo signal itself (IO2) |
-| C7 | MG996R metal-gear servo, **180° positional type** + sturdy camera pan bracket | 1 | PLANNED (team choice, 1 Nov 2026) | not the 360° continuous-rotation version (stage 6 checks this); 55 g, so the bracket must be rigid. 180° is nominal; the usable range comes from calibration and the bracket |
+| C7 | MG996R metal-gear servo, **180° positional type** + sturdy camera pan bracket | 1 | CONFIRMED (owned, 1 Nov 2026); 180° type not checked yet | not the 360° continuous-rotation version (stage 6 checks this); 55 g, so the bracket must be rigid. 180° is nominal; the usable range comes from calibration and the bracket |
 | C8 | 10 kΩ pull-down per motor-driver input | 4 (6 with BTS7960) | RECOMMENDED | keeps driver inputs LOW while the S3 boots or resets |
 | C9 | Battery divider 100 kΩ / 22 kΩ (+ 100 nF at the ADC pin) | 1 | RECOMMENDED | 12.6 V → 2.27 V on GPIO1 |
 | C10 | Motor-bus divider 100 kΩ / 22 kΩ (+ 100 nF) | 1 | optional | lets the firmware see that the contactor opened |
@@ -270,11 +270,11 @@ No connection to the S3 other than common power and ground. It talks over Wi-Fi 
 
 ## 3.11 Shopping list (beyond what the team already owns)
 
-3 × HC-SR04 · 1 × MG996R (180° type) + rigid pan bracket · 1 × 5 V ≥ 3 A servo buck · 2 × MD30C (or confirm the owned
+3 × HC-SR04 · rigid pan bracket · 2 × MD30C (or confirm the owned
 drivers) · 4 × Pololu #4744 (or #4754 with encoders; or confirm the owned 25GA motors' rating) ·
 1 × red mushroom E-stop with 2 NC blocks · 1 × 12 V-coil contactor ≥ 40 A DC · 1 × green NO
-push button · fuse holders and 25/15/15/3/2/1/1 A blade fuses · XT60 × 1 pair, XT30 × 4 pairs ·
-2 × 5 V buck converters (3 A and 2 A) · 3S Li-ion pack with ≥ 25 A BMS + 12.6 V charger +
+push button · fuse holders and 25/15/15/3/3/1/1 A blade fuses · XT60 × 1 pair, XT30 × 4 pairs ·
+2 × 5 V buck converters (logic and servo, each ≥ 3 A) · 3S Li-ion pack with ≥ 25 A BMS + 12.6 V charger +
 fire-resistant bag · resistors (1 k × 4, 1.8 k × 4, 10 k × 6, 100 k × 2, 22 k × 2) · capacitors
 (470 µF 16 V × 2, 1000 µF 16 V × 1, 100 nF × 4) · 1N4007 × 1 · wire per P12 · veroboard, headers,
 crimp connectors · 3.3 V USB-UART adapter or ESP32-CAM-MB. Optional audio: ESP32 DevKitC,

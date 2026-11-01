@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" role="img" aria-label="Power diagram. Battery through a 25 amp fuse splits two ways. Through contactor K1 it feeds the motor bus, which feeds both motor drivers and the servo buck; this side loses power when the E-stop is pressed. Through a 3 amp fuse it feeds the logic buck, which powers the S3, camera, sonars and DevKit; this side stays on. E-stop contact 1 breaks the contactor coil. E-stop contact 2 tells S3 GPIO21.">
+<style>svg{color:#16171B;background:#fff}text { fill: currentColor; font: 400 12.5px "Barlow", "Segoe UI", system-ui, sans-serif; }
+text.t-h { font: 600 18px "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: .02em; }
+text.t-s { fill: #5A5D65; font-size: 12px; }
+text.t-p { font: 500 12px "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
+text.t-w { font-size: 12px; paint-order: stroke; stroke: #FFFFFF; stroke-width: 4px; stroke-linejoin: round; }
+text.t-z { font: 600 15px "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: .03em; }
+text.c-5 { fill: #D11F1F; }
+text.c-a { fill: #8F6B00; font-weight: 600; }
+.box { fill: #FFFFFF; stroke: currentColor; stroke-width: 1.4; }
+.box-new { fill: #FFF8DC; stroke: #8F6B00; stroke-width: 2.6; }
+.box-stop { fill: none; stroke: #D11F1F; stroke-width: 2.2; }
+.zone-cut { fill: #FFF3C7; }
+.zone-on { fill: #E5F2E9; }
+.wire { fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linejoin: round; stroke-linecap: round; }
+.bus { stroke-width: 4; }
+.w-5 { stroke: #D11F1F; } .w-b { stroke: #0B66C3; } .w-t { stroke: #087F5F; }
+.w-o { stroke: #C25500; } .w-p { stroke: #7338BD; } .w-m { stroke: #B01F7C; }
+.w-a { stroke: #8F6B00; stroke-dasharray: 5 4; }
+.w-mot { stroke: #5A5D65; }
+.thin { stroke-width: 1.6; }
+.dash { stroke-dasharray: 4 4; }
+.dot { fill: currentColor; } .dot-5 { fill: #D11F1F; } .dot-m { fill: #B01F7C; }
+.pin { fill: #FFFFFF; stroke: currentColor; stroke-width: 1.5; }
+.res { fill: #FFFFFF; stroke: #B01F7C; stroke-width: 2; }
+.ah { fill: currentColor; } .ah-5 { fill: #D11F1F; }
+
+</style>
+      <rect class="zone-cut" x="628" y="28" width="362" height="240" rx="6"/>
+      <rect class="zone-on" x="628" y="300" width="362" height="244" rx="6"/>
+      <text class="t-z" x="642" y="48">Loses power when E-stop is pressed</text>
+      <text class="t-z" x="642" y="320">Stays on, so the rover can report</text>
+
+      <!-- battery and main fuse -->
+      <rect class="box" x="20" y="105" width="110" height="90" rx="5"/>
+      <text class="t-h" x="32" y="130">Battery</text>
+      <text class="t-s" x="32" y="150">3S Li-ion + BMS</text>
+      <text class="t-s" x="32" y="167">12.6 V full</text>
+      <path class="wire w-5" d="M130 150H150"/>
+      <rect class="box" x="150" y="136" width="60" height="28" rx="3"/>
+      <text class="t-p" x="180" y="154" text-anchor="middle">F1 25A</text>
+      <path class="wire" d="M75 195V212"/>
+      <path class="wire thin" d="M63 212H87M68 218H82M72 224H78"/>
+
+      <!-- main line to contactor -->
+      <path class="wire w-5" d="M210 150H520"/>
+      <circle class="dot-5" cx="235" cy="150" r="4"/>
+      <circle class="pin" cx="520" cy="150" r="3.5"/><circle class="pin" cx="600" cy="150" r="3.5"/>
+      <path class="wire" d="M520 150L592 128"/>
+      <text class="t-h" x="560" y="96" text-anchor="middle">K1 contactor</text>
+      <text class="t-s" x="560" y="113" text-anchor="middle">at least 40 A DC</text>
+      <path class="wire w-5" d="M600 150H640"/>
+
+      <!-- motor bus -->
+      <path class="wire w-5 bus" d="M640 85V215"/>
+      <text class="t-w c-5" x="632" y="80" text-anchor="end">motor bus</text>
+
+      <path class="wire w-5" d="M640 85H662"/><rect class="box" x="662" y="71" width="60" height="28" rx="3"/><text class="t-p" x="692" y="89" text-anchor="middle">F5 15A</text>
+      <path class="wire w-5" d="M722 85H742"/><rect class="box" x="742" y="63" width="118" height="44" rx="4"/><text x="801" y="90" text-anchor="middle">Motor driver L</text>
+      <path class="wire w-mot" d="M860 85H880"/><rect class="box" x="880" y="63" width="100" height="44" rx="4"/><text x="930" y="90" text-anchor="middle">2 left motors</text>
+
+      <path class="wire w-5" d="M640 150H662"/><rect class="box" x="662" y="136" width="60" height="28" rx="3"/><text class="t-p" x="692" y="154" text-anchor="middle">F6 15A</text>
+      <path class="wire w-5" d="M722 150H742"/><rect class="box" x="742" y="128" width="118" height="44" rx="4"/><text x="801" y="155" text-anchor="middle">Motor driver R</text>
+      <path class="wire w-mot" d="M860 150H880"/><rect class="box" x="880" y="128" width="100" height="44" rx="4"/><text x="930" y="155" text-anchor="middle">2 right motors</text>
+
+      <path class="wire w-5" d="M640 215H662"/><rect class="box" x="662" y="201" width="60" height="28" rx="3"/><text class="t-p" x="692" y="219" text-anchor="middle">F8 3A</text>
+      <path class="wire w-5" d="M722 215H742"/><rect class="box" x="742" y="193" width="118" height="44" rx="4"/><text x="801" y="212" text-anchor="middle">Servo buck</text><text class="t-s" x="801" y="228" text-anchor="middle">5 V, at least 3 A</text>
+      <path class="wire w-5" d="M860 215H880"/><rect class="box" x="880" y="193" width="100" height="44" rx="4"/><text x="930" y="220" text-anchor="middle">MG996R</text>
+
+      <!-- hold path -->
+      <path class="wire w-5" d="M620 150V205H556"/>
+      <circle class="dot-5" cx="620" cy="150" r="4"/>
+      <rect class="box" x="496" y="191" width="60" height="28" rx="3"/>
+      <text class="t-p" x="526" y="209" text-anchor="middle">F7 1A</text>
+      <path class="wire w-5" d="M496 205H395V270"/>
+      <text class="t-w" x="445" y="197" text-anchor="middle">hold path</text>
+
+      <!-- ARM path and coil -->
+      <path class="wire w-5" d="M235 150V450H250"/>
+      <circle class="dot-5" cx="235" cy="270" r="4"/>
+      <path class="wire w-5" d="M235 270H252"/>
+      <rect class="box" x="252" y="256" width="54" height="28" rx="3"/>
+      <text class="t-p" x="279" y="274" text-anchor="middle">F4 1A</text>
+      <path class="wire w-5" d="M306 270H320"/>
+      <rect class="box" x="320" y="256" width="56" height="28" rx="3"/>
+      <text x="348" y="275" text-anchor="middle">ARM</text>
+      <path class="wire w-5" d="M376 270H415"/>
+      <circle class="dot-5" cx="395" cy="270" r="4"/>
+
+      <rect class="box-stop" x="405" y="232" width="105" height="150" rx="9"/>
+      <text class="t-w c-5" x="457" y="226" text-anchor="middle">Red mushroom E-stop</text>
+      <rect class="box" x="415" y="250" width="85" height="40" rx="3"/>
+      <text x="457" y="275" text-anchor="middle">NC #1</text>
+      <path class="wire thin dash" d="M457 290V325"/>
+      <rect class="box" x="415" y="325" width="85" height="40" rx="3"/>
+      <text x="457" y="350" text-anchor="middle">NC #2</text>
+
+      <path class="wire w-5" d="M500 270H525"/>
+      <rect class="box" x="525" y="250" width="70" height="40" rx="3"/>
+      <text x="560" y="275" text-anchor="middle">K1 coil</text>
+      <text class="t-s" x="568" y="312" text-anchor="middle">1N4007 across coil</text>
+      <path class="wire" d="M595 270H612V284"/>
+      <path class="wire thin" d="M600 284H624M605 290H619M609 296H615"/>
+
+      <!-- NC 2 to S3 -->
+      <path class="wire" d="M415 345H385V360"/>
+      <path class="wire thin" d="M373 360H397M378 366H392M382 372H388"/>
+      <path class="wire w-o" d="M500 345H670"/>
+      <text class="t-w" x="585" y="337" text-anchor="middle">GPIO21 reads it</text>
+
+      <!-- logic branch -->
+      <rect class="box" x="250" y="436" width="60" height="28" rx="3"/>
+      <text class="t-p" x="280" y="454" text-anchor="middle">F3 3A</text>
+      <path class="wire w-5" d="M310 450H330"/>
+      <rect class="box" x="330" y="422" width="124" height="56" rx="4"/>
+      <text x="392" y="445" text-anchor="middle">Logic buck</text>
+      <text class="t-s" x="392" y="463" text-anchor="middle">5 V, at least 3 A</text>
+      <path class="wire" d="M392 478V494"/>
+      <path class="wire thin" d="M380 494H404M385 500H399M389 506H395"/>
+      <path class="wire w-5" d="M454 450H640"/>
+      <path class="wire w-5 bus" d="M640 372V514"/>
+      <text class="t-w c-5" x="548" y="442" text-anchor="middle">5 V logic rail</text>
+      <circle class="dot-5" cx="640" cy="450" r="4.5"/>
+
+      <path class="wire w-5" d="M640 372H670"/>
+      <rect class="box" x="670" y="330" width="310" height="54" rx="4"/>
+      <text x="684" y="353" font-weight="600">ESP32-S3</text>
+      <text class="t-s" x="684" y="371">runs missions, reports why it stopped</text>
+      <path class="wire w-5" d="M640 414H670"/>
+      <rect class="box" x="670" y="394" width="310" height="40" rx="4"/>
+      <text x="684" y="419" font-weight="600">ESP32-CAM</text>
+      <path class="wire w-5" d="M640 464H670"/>
+      <rect class="box" x="670" y="444" width="310" height="40" rx="4"/>
+      <text x="684" y="469" font-weight="600">HC-SR04 sonars</text>
+      <path class="wire w-5" d="M640 514H670"/>
+      <rect class="box" x="670" y="494" width="310" height="40" rx="4"/>
+      <text x="684" y="519" font-weight="600">ESP32 DevKit, audio (optional)</text>
+    </svg>

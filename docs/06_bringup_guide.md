@@ -162,6 +162,11 @@ For each sensor: wire it with its 1 k / 1.8 k echo divider, set its entry in `SO
    at 150 mm (below `REAR_CLEARANCE_MM` = 200): `blocked: rear obstacle too close`.
 5. Front-left and front-right the same way.
 
+**No resistors yet (bench only):** power the sensor from the S3's 3V3 pin and connect Echo straight to
+the S3 pin. On 3.3 V, Echo cannot exceed 3.3 V. Some HC-SR04s do not run on 3.3 V and will read
+`no_echo`. This only proves the wiring and firmware path: the final test at 5 V needs the divider.
+**With VCC on 5 V, never connect Echo without the divider.**
+
 **Send back:** a table of ruler distance vs reported mm for every sensor, plus the step 3 and 4 observations.
 
 ## Stage 5: ESP32-CAM and its link to the S3

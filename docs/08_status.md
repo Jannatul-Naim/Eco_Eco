@@ -69,6 +69,8 @@ Fixes made while completing the project:
   `/api/estop/reset`, so the reset request ran the E-stop handler. All POST command routes now
   use `AsyncURIMatcher::exact()`. Tested on the S3: E-STOP → ESTOP, RESET → IDLE. The S3 also
   reports its last `reset_reason` (banner and `/api/status`).
+- **Dashboard rearranged (2 Nov 2026):** four columns (video and drive; task control, power and connection; task readings; events, link and commands) and a light/dark theme switch. On the real rover at 1366×680: no page scroll, no column overflow, telemetry 76 ms. On windows under 760 px tall the secondary timestamp rows are hidden so all controls still fit.
+- **Found while testing: the console `status` command could crash the S3.** When the rover lock was busy it printed "rover busy" and then read an empty snapshot, and a null text pointer rebooted the board (LoadProhibited in `strlen`). `status` and `sonar` now stop there. The same command sequence no longer crashes, though the busy case did not recur in that retest.
 - **Camera wireless updates (OTA):** partition table `min_spiffs.csv` (two 1.9 MB app slots),
   ArduinoOTA on port 3232 with `CAM_OTA_PASSWORD` from `src/cam/secrets.h`, and
   `tools/cam_ota.sh`. **Verified 1 Nov 2026:** USB-flashed once on the MB, then
@@ -94,7 +96,7 @@ echo input (GPIO11, plain `INPUT`) was floating. The echo pins now use the inter
 an unwired or broken echo line reads `no_echo` (not fresh: blocks AUTO and traverse). The
 dashboard loaded from the rover, but its `/ws` socket kept dropping (bug above).
 
-Later on 1 Nov 2026, at the team's request, Claude uploaded all three boards from the team's PC
+Later on 1 Nov 2026, all three boards were uploaded from the team's PC
 (all hashes verified). Only USB is connected; nothing else is wired.
 
 - **S3** (CH343 bridge port, `s3_main` + dashboard file system). Serial boot log: banner with MAC
@@ -119,10 +121,10 @@ Fill this in from the checklist:
 | 1 S3 USB boot | | boot log OK on UART0; board identified from the team's photo |
 | 2 E-stop | | latches ESTOP at boot with the sense input open, as designed; no switch wired yet |
 | 3 Wi-Fi + dashboard | | joins Neonis; dashboard `live · 79 ms` over `/ws`, no console errors; battery divider not fitted |
-| 4 Sonars | | unwired sensor reads `no_echo` (fix confirmed); no sensor wired yet |
+| 4 Sonars | | front-center wired (2 Nov 2026), bench setup on 3.3 V with no divider: 181/181 valid readings in 30 s, follows a moving object, open-room reading steady at about 1830 mm (1829–1834). With a loose wire it read `no_echo` 31/31, never a fake number. Not passed: no ruler test yet, and the final test needs 5 V with the divider. Rear sonar not fitted |
 | 5 Camera + link | | **link steady** (1 Nov 2026, after the camera task fix): heartbeat age ≤ 200 ms, 0 stale samples in 30 s; S3 shows GC2145, IP, ~14 fps; stream serves frames. Camera powered from the DevKit VIN on the bench |
-| 6 Pan servo on camera | | firmware on the camera (IO2); MG996R planned, not wired yet |
-| 7 Camera tasks | | **QR → ping works end to end** (1 Nov 2026, TELEOP): camera decoded `192.168.0.197`, sent it over the link, the S3 re-validated it and pinged it from the rover: reply in 4 ms. Loopback `127.0.0.1` correctly rejected. Bench mode: QR and motion detection work. Not tested yet: AUTO `qr_ping` to COMPLETE, motion tracking with the servo |
+| 6 Pan servo on camera | | MG996R wired to IO2 (2 Nov 2026): camera boots normally with it, follows the dashboard slider, moves and holds (180° type, team observation), no restarts over 14 moves. Sweep 45–135°: smooth, no buzzing (team observation), no restarts or link drops. Rough angles only: nominal 500/2400 µs kept. Camera not mounted on the servo yet, so bracket and cable checks and fine calibration are still to do |
+| 7 Camera tasks | | **QR → ping works end to end** (1 Nov 2026, TELEOP): camera decoded `192.168.0.197`, sent it over the link, the S3 re-validated it and pinged it from the rover: reply in 4 ms. Loopback `127.0.0.1` correctly rejected. Bench mode: QR and motion detection work. Motion through the S3 (2 Nov 2026, TELEOP): a hand wave registers; camera at rest gave 0 detections in 55 samples over 8 s (0.0 % changed), so no false alarms from noise. Not tested yet: AUTO `qr_ping` to COMPLETE. **AUTO motion is not passed:** three runs reported COMPLETE in about 5 s, but the camera was not on the servo and the trigger was never explained (motion locked on 0.2–0.3 s after START, while TELEOP detection stayed clean). Retest with the camera mounted, recording frames |
 | 8 Motors raised | | |
 | 9 Audio | | board runs and reports to the S3; mic/speaker not wired |
 | 10 Dashboard + gamepad | | |
@@ -144,8 +146,8 @@ Fill this in from the checklist:
 | Motor drivers | MD30C baseline; the team's notes list BTS7960 × 2 or a 10 A dual H-bridge | which drivers are actually fitted (the 10 A dual is too small for the baseline motors) |
 | Battery and charger | 3S Li-ion with BMS ≥ 25 A (recommended, not chosen) | purchase |
 | Sonar count | 1 owned (front-center fitted in config), 4 planned | purchase; enable each in `SONAR_FITTED` |
-| Pan servo on ESP32-CAM IO2 | boots normally with the servo connected (IO2 is a strapping pin) | stage 6 step 1 |
-| MG996R type and signal | 180° positional type; accepts the 3.3 V signal | stage 6 steps 1–2 (a 360° continuous version cannot be used) |
+| Pan servo on ESP32-CAM IO2 | **resolved** (2 Nov 2026): boots normally with the servo connected | — |
+| MG996R type and signal | **resolved** (2 Nov 2026): moves and holds, so 180° positional; works on the 3.3 V signal | — |
 | Servo pulse endpoints | 500 / 2400 µs nominal (`src/cam/config_cam.h`), range 45–135° | stage 6 calibration |
 | Pan direction vs image | `MOTION_PAN_DIRECTION = +1` (`src/cam/config_cam.h`) | stage 7 step 5 |
 | Proximity controller gains | `PROX_MIN_DUTY 0.12`, `PROX_GAIN_PER_MM 0.0015` | floor tuning, stage 13 |
