@@ -27,13 +27,14 @@ RoverSnapshot g_snap;
 void printResult(const CmdResult& r) { Serial.printf("%s (%d): %s\n", r.ok ? "OK" : "REJECTED", r.http, r.message); }
 
 template <typename Fn>
-void withLock(Fn fn) {
+bool withLock(Fn fn) {
   RoverLock lock(100);
   if (!lock.ok()) {
     Serial.println("rover busy, retry");
-    return;
+    return false;
   }
   fn();
+  return true;
 }
 
 void printSonar(const RoverSnapshot& s) {
@@ -46,7 +47,8 @@ void printSonar(const RoverSnapshot& s) {
 }
 
 void printStatus() {
-  withLock([] { g_rover.snapshot(&g_snap); });
+  // No lock, no snapshot: g_snap would still be empty, with null text pointers.
+  if (!withLock([] { g_rover.snapshot(&g_snap); })) return;
   const RoverSnapshot& s = g_snap;
   const NetInfo n = netInfo();
   Serial.printf("mode=%s state=%s mission=%s detail=\"%s\"\n", modeName(s.mode), stateName(s.state),
@@ -106,8 +108,7 @@ void execute(char* line) {
   } else if (!strcmp(cmd, "status")) {
     printStatus();
   } else if (!strcmp(cmd, "sonar")) {
-    withLock([] { g_rover.snapshot(&g_snap); });
-    printSonar(g_snap);
+    if (withLock([] { g_rover.snapshot(&g_snap); })) printSonar(g_snap);
   } else if (!strcmp(cmd, "events")) {
     printEvents();
   } else if (!strcmp(cmd, "wifi")) {
