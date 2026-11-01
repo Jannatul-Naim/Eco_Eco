@@ -96,12 +96,41 @@ function enable(id, on) {
   if (e) e.disabled = !on;
 }
 
+// ---------------------------------------------------------------- command log
+const cmdItems = [];
+function logCmd(name, args, ok, note) {
+  // Repeats of one command (a dragged pan slider) stay one line.
+  if (cmdItems[0] && cmdItems[0].name === name) cmdItems.shift();
+  cmdItems.unshift({ at: new Date().toLocaleTimeString([], { hour12: false }), name, args, ok, note });
+  cmdItems.length = Math.min(cmdItems.length, 5);
+  const ol = $('cmdLog');
+  ol.innerHTML = '';
+  for (const c of cmdItems) {
+    const li = document.createElement('li');
+    li.title = c.note || '';
+    const t = document.createElement('span');
+    t.className = 't';
+    t.textContent = c.at;
+    const n = document.createElement('span');
+    n.className = 'name';
+    n.textContent = c.args ? `${c.name} ${c.args}` : c.name;
+    const res = document.createElement('span');
+    res.className = `res ${c.ok ? 'good' : 'badc'}`;
+    res.textContent = c.ok ? 'OK' : 'REFUSED';
+    li.append(t, n, res);
+    ol.append(li);
+  }
+}
+
 // ---------------------------------------------------------------- commands
 async function post(path, body, quiet = false) {
   if (!host) {
     toast('set the rover address first', true);
     return { ok: false };
   }
+  const name = path.replace('/api/', '');
+  const args = Object.values(body || {}).join(' ');
+  const log = (ok, note) => { if (name !== 'drive') logCmd(name, args, ok, note); };
   try {
     const r = await fetch(api(path), {
       method: 'POST',
@@ -110,9 +139,11 @@ async function post(path, body, quiet = false) {
       cache: 'no-store',
     });
     const j = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
+    log(j.ok, j.ok ? j.message : j.error);
     if (!quiet) toast(j.ok ? j.message : j.error, !j.ok);
     return j;
   } catch (e) {
+    log(false, e.message);
     if (!quiet) toast(`rover unreachable (${e.message})`, true);
     return { ok: false };
   }
@@ -127,6 +158,7 @@ function estop(source) {
   }
   disarmGamepad(null);
   clearManual();
+  logCmd('E-STOP', source, true, 'sent over WebSocket and HTTP');
   toast(`E-STOP sent (${source})`, true);
 }
 
@@ -246,7 +278,7 @@ function render(st, se) {
   const wall = modeSeenAt ? ` · ${modeSeenAt.toLocaleTimeString()}` : '';
   put('modeChanged', `${stamp(st.mode_changed_ms)}${wall}`);
   put('stateChanged', stamp(st.state_changed_ms));
-  put('controlsVal', st.controls_locked ? 'LOCKED (AUTO)' : teleop ? 'teleop active' : 'not driving',
+  put('controlsVal', st.controls_locked ? 'LOCKED' : teleop ? 'active' : 'off',
     st.controls_locked ? 'warnc' : teleop ? 'good' : 'dim');
 
   // mode buttons
@@ -293,7 +325,8 @@ function render(st, se) {
   // connection
   const c = st.connection;
   put('wifi', `${c.wifi}${c.ssid ? ` · ${c.ssid}` : ''}`, c.wifi === 'ap' ? 'warnc' : '');
-  put('ip', `${c.ip} (${c.hostname})`);
+  put('ip', c.ip);
+  $('ip').title = c.hostname;
   put('rssi', c.rssi == null ? '—' : `${c.rssi} dBm`);
   put('uptime', clock(st.uptime_ms));
   put('wsClients', c.ws_clients);
@@ -333,13 +366,15 @@ function renderSensors(se, teleop, auto, estopActive) {
   put('proxWindow', p.in_window == null ? '—' : p.in_window ? 'IN WINDOW' : 'outside', p.in_window ? 'good' : 'dim');
   put('proxT', stamp(p.t_ms || null));
   const ri = se.rear_interlock;
-  put('revAllowed', ri.reverse_allowed ? 'allowed' : `blocked: ${ri.reason}`, ri.reverse_allowed ? 'good' : 'warnc');
+  put('revAllowed', ri.reverse_allowed ? 'allowed' : `blocked, ${ri.reason.replace('rear ', '')}`, ri.reverse_allowed ? 'good' : 'warnc');
 
   // camera
   const cam = se.camera;
   put('camLink', `link ${cam.link}`, cam.link === 'ok' ? 'good' : 'badc');
   put('camSensor', cam.sensor ? `${cam.sensor} (${cam.pid})` : '—');
+  put('camLinkVal', cam.link, cam.link === 'ok' ? 'good' : 'badc');
   put('camAge', cam.hb_age_ms != null ? `${cam.hb_age_ms} ms` : '—');
+  put('camRx', `${cam.rx_ok} ok · ${cam.rx_bad} bad`);
   put('camIp', cam.ip || '—');
   put('camFps', `${cam.fps.toFixed(1)} fps · hb ${cam.hb_age_ms ?? '—'} ms`);
   // The video comes straight from the camera over Wi-Fi; the UART link only told
@@ -381,9 +416,9 @@ function renderSensors(se, teleop, auto, estopActive) {
 
   // motion
   const mo = se.motion;
-  put('motEnabled', mo.enabled ? (mo.camera_armed ? 'running' : 'requested') : 'off', mo.enabled ? 'good' : 'dim');
-  put('motDetected', mo.detected ? `yes · x ${mo.cx.toFixed(2)}` : 'no', mo.detected ? 'good' : 'dim');
-  put('motTracking', mo.tracking ? 'TRACKING' : 'searching', mo.tracking ? 'good' : 'dim');
+  put('motEnabled', mo.enabled ? (mo.camera_armed ? 'on' : 'waiting') : 'off', mo.enabled ? 'good' : 'dim');
+  put('motDetected', mo.detected ? `yes ${mo.cx.toFixed(2)}` : 'no', mo.detected ? 'good' : 'dim');
+  put('motTracking', mo.tracking ? 'yes' : 'no', mo.tracking ? 'good' : 'dim');
   put('motArea', `${(mo.area * 100).toFixed(1)} %`);
   put('motT', stamp(mo.t_ms));
   const dot = $('motDot');
@@ -643,6 +678,7 @@ setInterval(() => {
   put('rtt', rttMs != null ? `${rttMs.toFixed(0)} ms` : '—');
   const live = ws && ws.readyState === WebSocket.OPEN;
   const stale = now - lastTelemetryAt > 1000;
+  put('linkKind', live ? 'WebSocket' : pollTimer ? 'HTTP polling, 1 s' : 'down', live ? 'good' : 'warnc');
   if (live && !stale) {
     put('linkPill', `live · ${med != null ? med.toFixed(0) : '—'} ms`);
     pill.className = 'pill ok';
@@ -851,6 +887,24 @@ const nudgePan = (d) => {
 $('panLeftBtn').addEventListener('click', () => nudgePan(-10));
 $('panRightBtn').addEventListener('click', () => nudgePan(10));
 $('panCenterBtn').addEventListener('click', () => post('/api/servo', { angle: 90 }, true));
+
+// ---------------------------------------------------------------- theme
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name="theme-color"]').content = theme === 'light' ? '#f6f7f2' : '#000000';
+  const next = theme === 'light' ? 'dark' : 'light';
+  put('themeIcon', next === 'light' ? '☀' : '☾');
+  put('themeLabel', next.toUpperCase());
+  $('themeBtn').title = `Switch to the ${next} theme`;
+  $('themeBtn').setAttribute('aria-label', $('themeBtn').title);
+}
+setTheme(document.documentElement.dataset.theme);
+$('themeBtn').addEventListener('click', () => {
+  const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  setTheme(theme);
+  storageSet('theme', theme);
+  $('themeBtn').blur();  // Space must stay the E-stop key, with no focus left on this button
+});
 
 $('hostInput').value = host;
 $('hostBtn').addEventListener('click', () => {
