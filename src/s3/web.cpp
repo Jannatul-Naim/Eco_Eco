@@ -20,6 +20,12 @@ AsyncWebServer g_server(HTTP_PORT);
 AsyncWebSocket g_ws("/ws");
 constexpr size_t kMaxBody = 512;
 constexpr uint32_t kHandlerLockMs = 50;
+// Web traffic must never restart the rover. Under heavy load the server's
+// buffers used up the heap, and a failed `new` inside the web library aborts
+// the firmware (seen in textAll, 2 Nov 2026). Below these levels requests get
+// a 503 and telemetry frames are skipped until memory recovers.
+constexpr uint32_t kShedRequestsFreeHeap = 64 * 1024;
+constexpr uint32_t kSkipTelemetryBlock = 16 * 1024;
 uint32_t g_lastTelemetryMs = 0;
 uint32_t g_telemetrySeq = 0;
 uint32_t g_lastEventSeqSent = 0;
@@ -366,6 +372,14 @@ void webBegin(bool filesystemOk) {
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
 
+  // The E-stop is never refused.
+  g_server.addMiddleware([](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+    if (ESP.getFreeHeap() < kShedRequestsFreeHeap && req->url() != "/api/estop") {
+      return sendError(req, 503, "rover busy, retry");
+    }
+    next();
+  });
+
   g_ws.onEvent(onWsEvent);
   g_server.addHandler(&g_ws);
 
@@ -471,6 +485,7 @@ void webLoop(uint32_t nowMs) {
   }
   if (g_ws.count() == 0 || nowMs - g_lastTelemetryMs < TELEMETRY_PERIOD_MS) return;
   g_lastTelemetryMs = nowMs;
+  if (ESP.getMaxAllocHeap() < kSkipTelemetryBlock) return;
   {
     RoverLock lock(20);
     if (!lock.ok()) return;
