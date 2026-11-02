@@ -17,7 +17,7 @@ Rulebook constraints that shape this design (Mechanical & Electrical Rulebook V1
 - 3.1: circuits on **soldered veroboard/perfboard or PCB**. No breadboards anywhere on the rover.
 - 3.2: **XT30/XT60/XT90 or Deans** on every power connection between the battery, E-stop, distribution and drivers. Red wire for every positive line, black for ground, any other colour for signals.
 - 3.3: nominal battery ≤ 24 V, fused, secured, and carried and charged in a fire-resistant bag.
-- 3.4: a schematic showing every pin, committed to GitHub with the pin map. **The drawings in [diagrams/](diagrams/) (bench wiring, rover power and E-stop, data and timing) and the text diagrams here are a starting point; the team must still draw the schematic** (KiCad, EasyEDA, Fritzing or neat pen and paper).
+- 3.4: a schematic showing every pin, committed to GitHub with the pin map. **The full schematic, wire schedule, pin maps and test sheet are in [Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf](Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf), for the electrical team.** The circuit must match it before the M4 freeze, so change it when the build changes (`tools/make_electrical_pdf.py`). It is drawn by a script; rule 3.4.1 names schematic software or a neat pen-and-paper diagram, so redraw it in KiCad or EasyEDA if a judge asks.
 - Class A (4WD, no flippers) is assumed, since no flipper hardware exists.
 
 ## 3.1 Bill of materials
@@ -53,7 +53,7 @@ divider so the cap follows the real voltage.
 | P6 | Momentary NO push button, green, "ARM" | 1 | RECOMMENDED | the deliberate restart action (rule 1.2.4) |
 | P7 | Flyback diode across the contactor coil (1N4007) | 1 | RECOMMENDED | cathode to coil +. Omit if the relay has a built-in diode (check polarity). |
 | P8 | Inline blade-fuse holders + fuses: **25 A** main, **15 A** × 2 (driver branches), **3 A** logic, **3 A** servo supply, **1 A** × 2 (coil/ARM and hold path) | 1 set | RECOMMENDED | slow-blow automotive blade (ATO/ATC). Main fuse as close to the battery as possible. |
-| P9 | XT60 pair (battery), XT30 pairs (driver branches, buck inputs) | 1 + 4 | RECOMMENDED | rulebook 3.2.1 |
+| P9 | XT60 pairs (battery; K1 to motor bus), XT30 pairs (driver branches, buck inputs) | 2 + 4 | RECOMMENDED | rulebook 3.2.1 |
 | P10 | 5 V buck converter, ≥ 3 A continuous, 6–24 V in ("logic 5 V") | 1 | RECOMMENDED | S3, ESP32-CAM, sonars, optional audio board |
 | P11 | 5 V buck converter, ≥ 3 A continuous ("servo 5 V") | 1 | RECOMMENDED | MG996R only (stall ≈ 2.5 A); fed from the **motor bus** so the E-stop also stops the servo |
 | P12 | Wire: 14 AWG silicone red/black (battery to drivers), 18 AWG (drivers to motors), 22 AWG red/black (5 V rails), 24–26 AWG coloured (signals) | — | RECOMMENDED | rulebook 3.2.3 colours |
@@ -74,6 +74,7 @@ divider so the cap follows the real voltage.
 | C9 | Battery divider 100 kΩ / 22 kΩ (+ 100 nF at the ADC pin) | 1 | RECOMMENDED | 12.6 V → 2.27 V on GPIO1 |
 | C10 | Motor-bus divider 100 kΩ / 22 kΩ (+ 100 nF) | 1 | optional | lets the firmware see that the contactor opened |
 | C11 | 470 µF 16 V electrolytic + 100 nF at the ESP32-CAM 5 V pin; 470–1000 µF across the servo 5 V / GND at the servo connector | 2 | RECOMMENDED | ESP32-CAM brownouts and servo current spikes are common |
+| C13 | 100 µF 16 V + 100 nF across VCC / GND at each sonar | 4 sets | RECOMMENDED, not tested | proposed against the stray readings seen on the bench (suspected supply noise, not proven) |
 | C12 | Soldered veroboard/perfboard, female headers, JST-XH or Dupont crimp connectors, heat shrink, cable ties | — | RECOMMENDED | rulebook 3.1 |
 
 ### Optional audio (two-way audio task, teleop only, ×1)
@@ -158,6 +159,12 @@ How it behaves:
 
 Check at inspection: with the motors running on the bench (wheels raised), press the E-stop and
 the wheels must stop and the motor bus must read 0 V on a multimeter.
+
+**Check for re-latching.** The hold path takes its power from the motor bus. After K1 opens, the bus can stay
+charged for a moment by the driver capacitors, and by the motors acting as generators while the wheels still
+turn. If the E-stop is released in that moment, K1 could pull back in, which rule 1.2.4 forbids. Test it with
+the wheels spinning. If it re-latches, feed the hold path from BAT+ through an auxiliary NO contact on K1, or
+fit a bleed resistor across the bus (1 kΩ 1 W) and test again. Not tested yet; nothing is built.
 
 ## 3.5 Motor drivers and motor pairing
 
@@ -273,9 +280,9 @@ No connection to the S3 other than common power and ground. It talks over Wi-Fi 
 3 × HC-SR04 · rigid pan bracket · 2 × MD30C (or confirm the owned
 drivers) · 4 × Pololu #4744 (or #4754 with encoders; or confirm the owned 25GA motors' rating) ·
 1 × red mushroom E-stop with 2 NC blocks · 1 × 12 V-coil contactor ≥ 40 A DC · 1 × green NO
-push button · fuse holders and 25/15/15/3/3/1/1 A blade fuses · XT60 × 1 pair, XT30 × 4 pairs ·
+push button · fuse holders and 25/15/15/3/3/1/1 A blade fuses · XT60 × 2 pairs, XT30 × 4 pairs ·
 2 × 5 V buck converters (logic and servo, each ≥ 3 A) · 3S Li-ion pack with ≥ 25 A BMS + 12.6 V charger +
 fire-resistant bag · resistors (1 k × 4, 1.8 k × 4, 10 k × 6, 100 k × 2, 22 k × 2) · capacitors
-(470 µF 16 V × 2, 1000 µF 16 V × 1, 100 nF × 4) · 1N4007 × 1 · wire per P12 · veroboard, headers,
+(470 µF 16 V × 1, 1000 µF 16 V × 1, 100 µF 16 V × 4, 100 nF × 7) · 1N4007 × 1 · wire per P12 · veroboard, headers,
 crimp connectors · 3.3 V USB-UART adapter or ESP32-CAM-MB. Optional audio: ESP32 DevKitC,
 INMP441, MAX98357A, 4 Ω 3 W speaker.

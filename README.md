@@ -34,7 +34,7 @@ Shared code lives in `lib/rover_common/` (UART framing with CRC-8, strict IPv4 v
 | Touch target, box smash | — | not implemented (no sensor or actuator for them) |
 | Dashboard contract: `/api/status`, `/api/sensors`, `/api/mode`, `/api/drive`, `/api/estop`(+`/reset`), `/api/camera/stream`, `WS /ws` | `src/s3/web.cpp` | compiled |
 | Dashboard functions: mode switch with last-change time, control, all sensors with timestamps, camera with fps, E-stop, rover status | `data/` | rendered in a browser with sample data |
-| Schematic / wiring diagram and pin map in the repo | [docs/03_electrical.md](docs/03_electrical.md), [docs/05_pin_maps.md](docs/05_pin_maps.md) | text wiring diagrams; **the team still has to draw the schematic** (M&E 3.4) |
+| Schematic / wiring diagram and pin map in the repo | [docs/Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf](docs/Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf), [docs/03_electrical.md](docs/03_electrical.md), [docs/05_pin_maps.md](docs/05_pin_maps.md) | drawn, **power side not built yet**; the built circuit must match it (M&E 3.4) |
 
 "Compiled" means the code builds. [docs/08_status.md](docs/08_status.md) lists what has also been
 tested on the real boards. Wiring drawings are in [docs/diagrams/](docs/diagrams/).
@@ -74,6 +74,7 @@ Uploading, the dashboard file system and serial monitoring are covered step by s
 6. [Bring-up guide](docs/06_bringup_guide.md): staged commissioning with exact commands
 7. [Test checklist](docs/07_test_checklist.md): ordered pass/fail sheet
 8. [Status and assumptions](docs/08_status.md): what is compiled, tested and still unknown
+9. [Electrical schematic and build guide (PDF)](docs/Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf): for the electrical team: full schematic, wire schedule, pin maps, BOM, test sheet
 
 ## Repository rules for the Dashboard Review
 

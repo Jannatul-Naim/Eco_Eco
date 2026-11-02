@@ -1,7 +1,8 @@
 # 5. Pin maps
 
-> **PROVISIONAL.** The S3 header was checked against the team's photo (1 Nov 2026); no pin has
-> been tested with wiring yet. Before wiring a board, compare its header silkscreen with the table. If a pin label differs, or a pin listed here does not exist on your
+> **PROVISIONAL.** The S3 header was checked against the team's photo (1 Nov 2026). Tested with real
+> wiring so far: S3 GPIO10, 11, 21, 41, 42 and camera IO2, IO13, IO14. The same pins are drawn on
+> Sheet 1 of [Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf](Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf). Before wiring a board, compare its header silkscreen with the table. If a pin label differs, or a pin listed here does not exist on your
 > header, **stop**. Send a photo of both sides of the board and the header labels, and update
 > the config file before you wire anything.
 
