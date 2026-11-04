@@ -147,6 +147,8 @@ IDLE; otherwise `goto` the operator's angle.
   `{"v":1,"t":"audio_hb","lvl":0..100,"cl":clients,"spk":0|1}`. The S3 uses it for display only.
 - **Audio socket:** `ws://<audio-ip>/audio`, at most 2 clients.
   - Client → board, text: `{"listen":true|false}` to opt in to the microphone stream.
-  - Board → client, binary: 16 kHz, 16-bit signed little-endian mono PCM, 320 samples (20 ms) per frame.
-  - Client → board, binary: the same format, played on the speaker (1 s ring buffer; excess is dropped).
-- `GET /status` on port 80: mic/speaker init, level, clients.
+  - Client → board, text: `{"vol":0..100}` to dynamically adjust rover speaker output volume.
+  - Board → client, binary: 16 kHz, 16-bit signed little-endian mono PCM, 320 samples (20 ms) per frame (DC offset filtered).
+  - Client → board, binary: the same format, played on the speaker (1 s ring buffer; excess is dropped, soft-clamped).
+- `GET /status` on port 80: mic/speaker init, level, speaker_gain, clients.
+- `POST /volume?val=0..100` on port 80: set rover speaker volume.

@@ -706,10 +706,37 @@ setInterval(() => {
 }, 2000);
 
 // ---------------------------------------------------------------- audio (optional board)
-const audio = { ctx: null, ws: null, listening: false, talking: false, next: 0, mic: null, nodes: [] };
+const savedVol = localStorage.getItem('eco_au_vol');
+const audio = {
+  ctx: null,
+  ws: null,
+  listening: false,
+  talking: false,
+  next: 0,
+  mic: null,
+  nodes: [],
+  gainNode: null,
+  filterNode: null,
+  volume: savedVol !== null ? Math.max(0, Math.min(1, parseFloat(savedVol))) : 0.8
+};
 
 function audioCtx() {
-  if (!audio.ctx) audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!audio.ctx) {
+    audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // 120 Hz high-pass filter: eliminates DC bias and low-frequency rover motor rumble
+    audio.filterNode = audio.ctx.createBiquadFilter();
+    audio.filterNode.type = 'highpass';
+    audio.filterNode.frequency.value = 120;
+    audio.filterNode.Q.value = 0.707;
+
+    // Gain node for listening volume control & talk-ducking
+    audio.gainNode = audio.ctx.createGain();
+    audio.gainNode.gain.value = audio.volume;
+
+    audio.filterNode.connect(audio.gainNode);
+    audio.gainNode.connect(audio.ctx.destination);
+  }
   if (audio.ctx.state === 'suspended') audio.ctx.resume();
   return audio.ctx;
 }
@@ -723,8 +750,12 @@ function audioSocket() {
   if (audio.ws && audio.ws.readyState <= WebSocket.OPEN) return audio.ws;
   const s = new WebSocket(`ws://${au.ip}/audio`);
   s.binaryType = 'arraybuffer';
-  s.onopen = () => s.send(JSON.stringify({ listen: audio.listening }));
-  s.onmessage = (e) => { if (audio.listening && e.data instanceof ArrayBuffer) playPcm(e.data); };
+  s.onopen = () => {
+    s.send(JSON.stringify({ listen: audio.listening }));
+  };
+  s.onmessage = (e) => {
+    if (audio.listening && e.data instanceof ArrayBuffer) playPcm(e.data);
+  };
   s.onclose = () => {
     audio.ws = null;
     audio.listening = false;
@@ -739,14 +770,28 @@ function playPcm(buf) {
   const ctx = audio.ctx;
   const pcm = new Int16Array(buf);
   if (!ctx || !pcm.length) return;
+
+  // Real-time level calculation for immediate responsive visual feedback
+  let maxAmp = 0;
   const ab = ctx.createBuffer(1, pcm.length, 16000);  // the context resamples
   const ch = ab.getChannelData(0);
-  for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 32768;
+  for (let i = 0; i < pcm.length; i++) {
+    const v = pcm[i] / 32768;
+    ch[i] = v;
+    const abs = Math.abs(v);
+    if (abs > maxAmp) maxAmp = abs;
+  }
+
+  if (audio.listening) {
+    const pct = Math.min(100, Math.round(maxAmp * 125));
+    $('auLevel').style.width = `${pct}%`;
+  }
+
   const src = ctx.createBufferSource();
   src.buffer = ab;
-  src.connect(ctx.destination);
+  src.connect(audio.filterNode || ctx.destination);
   const now = ctx.currentTime;
-  if (audio.next < now + 0.02 || audio.next > now + 0.5) audio.next = now + 0.08;  // small jitter buffer
+  if (audio.next < now + 0.02 || audio.next > now + 0.5) audio.next = now + 0.06;
   src.start(audio.next);
   audio.next += ab.duration;
 }
@@ -773,12 +818,19 @@ async function startTalk() {
   }
   const ctx = audioCtx();
   if (!audioSocket()) return;
+
+  // Acoustic echo / feedback prevention: duck incoming audio while operator talks
+  if (audio.gainNode) {
+    audio.gainNode.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
+  }
+
   try {
     if (!audio.mic) {
       audio.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
     }
   } catch (e) {
     toast(`microphone blocked: ${e.message}`, true);
+    if (audio.gainNode) audio.gainNode.gain.setTargetAtTime(audio.volume, ctx.currentTime, 0.05);
     return;
   }
   audio.talking = true;
@@ -800,7 +852,9 @@ async function startTalk() {
       for (let j = a; j < b; j++) sum += f[j];
       out[i] = Math.max(-1, Math.min(1, sum / (b - a))) * 32767;
     }
-    audio.ws.send(out.buffer);
+    try {
+      audio.ws.send(out.buffer);
+    } catch (err) {}
   };
   src.connect(proc);
   proc.connect(mute);
@@ -811,8 +865,15 @@ async function startTalk() {
 
 function stopTalk() {
   audio.talking = false;
-  for (const n of audio.nodes) n.disconnect();
+  for (const n of audio.nodes) {
+    try { n.disconnect(); } catch (e) {}
+  }
   audio.nodes = [];
+
+  // Smoothly restore listening volume
+  if (audio.gainNode && audio.ctx) {
+    audio.gainNode.gain.setTargetAtTime(audio.volume, audio.ctx.currentTime, 0.08);
+  }
   updateAudioButtons();
 }
 
@@ -823,6 +884,20 @@ talk.addEventListener('pointerdown', (e) => {
   startTalk();
 });
 for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) talk.addEventListener(ev, stopTalk);
+
+// Volume slider handling
+const auVolSlider = $('auVol');
+if (auVolSlider) {
+  auVolSlider.value = Math.round(audio.volume * 100);
+  auVolSlider.addEventListener('input', (e) => {
+    audio.volume = e.target.value / 100;
+    try { localStorage.setItem('eco_au_vol', audio.volume.toString()); } catch (err) {}
+    if (audio.gainNode && !audio.talking && audio.ctx) {
+      audio.gainNode.gain.setValueAtTime(audio.volume, audio.ctx.currentTime);
+    }
+  });
+}
+
 if (!window.isSecureContext) $('auNote').classList.add('warnc');
 
 // ---------------------------------------------------------------- buttons

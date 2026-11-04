@@ -1,8 +1,8 @@
 // URRT rover — OPTIONAL audio bridge (ESP32 DevKit, INMP441 + MAX98357A).
 //
 // Two-way audio for the teleoperated audio task:
-//   mic     INMP441 -> 16 kHz PCM -> WebSocket binary frames -> dashboard speaker
-//   speaker dashboard microphone -> WebSocket binary frames -> MAX98357A
+//   mic     INMP441 -> DC blocker -> 16 kHz PCM -> WebSocket binary frames -> dashboard speaker
+//   speaker dashboard microphone -> WebSocket binary frames -> gain limiter -> MAX98357A
 // The S3 only receives a UDP status heartbeat from this board. There is no
 // message path from here to the motors, and the S3 accepts no commands from it.
 #include <Arduino.h>
@@ -24,7 +24,7 @@
 #include "secrets.example.h"
 #endif
 
-constexpr const char* AUDIO_FW_VERSION = "audio 0.1.0";
+constexpr const char* AUDIO_FW_VERSION = "audio 0.2.0";
 // Flip if the mic level stays at 0 with the INMP441 L/R pin tied to GND
 // (some ESP-IDF releases swap the slot that ONLY_LEFT reads).
 constexpr bool MIC_READ_RIGHT_SLOT = false;
@@ -37,6 +37,7 @@ bool g_micOk = false;
 bool g_spkOk = false;
 
 volatile int g_micLevel = 0;  // 0..100
+volatile float g_speakerGain = SPEAKER_GAIN;
 uint32_t g_listeners[AUDIO_MAX_CLIENTS] = {};
 portMUX_TYPE g_listenMux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -101,13 +102,23 @@ int levelFromRms(float rms) {
 void micTask(void*) {
   static int32_t raw[MIC_CHUNK_SAMPLES];
   static int16_t pcm[MIC_CHUNK_SAMPLES];
+  // DC blocker state: y[n] = x[n] - x[n-1] + R * y[n-1] (~12 Hz cutoff at 16 kHz)
+  float xPrev = 0.0f;
+  float yPrev = 0.0f;
+  constexpr float R = 0.995f;
+
   for (;;) {
     size_t got = 0;
     if (i2s_read(I2S_NUM_0, raw, sizeof(raw), &got, pdMS_TO_TICKS(100)) != ESP_OK || got == 0) continue;
     const size_t n = got / sizeof(int32_t);
     double sumSq = 0.0;
     for (size_t i = 0; i < n; ++i) {
-      int32_t s = raw[i] >> MIC_SHIFT;
+      const float x = static_cast<float>(raw[i] >> MIC_SHIFT);
+      const float y = x - xPrev + R * yPrev;
+      xPrev = x;
+      yPrev = y;
+
+      int32_t s = static_cast<int32_t>(y);
       if (s > 32767) s = 32767;
       if (s < -32768) s = -32768;
       pcm[i] = static_cast<int16_t>(s);
@@ -139,12 +150,16 @@ size_t ringPop(int16_t* out, size_t max) {
 
 void ringPush(const uint8_t* data, size_t len) {
   const size_t n = len / 2;
+  const float gain = g_speakerGain;
   portENTER_CRITICAL(&g_ringMux);
   for (size_t i = 0; i < n; ++i) {
     const int16_t s = static_cast<int16_t>(data[2 * i] | (data[2 * i + 1] << 8));
     const size_t next = (g_ringHead + 1) % SPEAKER_RING_SAMPLES;
     if (next == g_ringTail) break;  // full: drop the rest rather than add delay
-    g_ring[g_ringHead] = static_cast<int16_t>(s * SPEAKER_GAIN);
+    float scaled = static_cast<float>(s) * gain;
+    if (scaled > 32767.0f) scaled = 32767.0f;
+    if (scaled < -32768.0f) scaled = -32768.0f;
+    g_ring[g_ringHead] = static_cast<int16_t>(scaled);
     g_ringHead = next;
   }
   portEXIT_CRITICAL(&g_ringMux);
@@ -213,7 +228,13 @@ void onWsEvent(AsyncWebSocket*, AsyncWebSocketClient* client, AwsEventType type,
         if (g_spkOk) ringPush(data, len);
       } else if (info->opcode == WS_TEXT && info->final && info->index == 0 && len < 64) {
         JsonDocument d;
-        if (!deserializeJson(d, data, len) && d["listen"].is<bool>()) setListener(client->id(), d["listen"].as<bool>());
+        if (!deserializeJson(d, data, len)) {
+          if (d["listen"].is<bool>()) setListener(client->id(), d["listen"].as<bool>());
+          if (d["vol"].is<int>()) {
+            const int v = d["vol"].as<int>();
+            if (v >= 0 && v <= 100) g_speakerGain = v / 100.0f;
+          }
+        }
       }
       break;
     }
@@ -241,6 +262,7 @@ void httpBegin() {
     doc["mic_ok"] = g_micOk;
     doc["speaker_ok"] = g_spkOk;
     doc["mic_level"] = g_micLevel;
+    doc["speaker_gain"] = static_cast<int>(g_speakerGain * 100);
     doc["clients"] = clientCount();
     doc["speaker_active"] = g_speakerOn;
     doc["sample_rate"] = AUDIO_SAMPLE_RATE;
@@ -248,6 +270,17 @@ void httpBegin() {
     String out;
     serializeJson(doc, out);
     req->send(200, "application/json", out);
+  });
+  g_server.on("/volume", HTTP_POST, [](AsyncWebServerRequest* req) {
+    if (req->hasParam("val")) {
+      const int v = req->getParam("val")->value().toInt();
+      if (v >= 0 && v <= 100) {
+        g_speakerGain = v / 100.0f;
+        req->send(200, "application/json", "{\"ok\":true}");
+        return;
+      }
+    }
+    req->send(400, "application/json", "{\"error\":\"val must be 0..100\"}");
   });
   g_server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
     req->send(200, "text/html",
