@@ -1,0 +1,14 @@
+{
+  "name": "rover-audio-comm",
+  "version": "1.0.0",
+  "description": "2-Way Audio Communication System for Rover",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "selfsigned": "^5.5.0",
+    "ws": "^8.16.0"
+  }
+}

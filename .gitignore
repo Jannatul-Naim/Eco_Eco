@@ -11,3 +11,7 @@ src/*/secrets.h
 # OS / editor noise
 .DS_Store
 *.swp
+
+# Audio communication (WebRTC / Node.js)
+node_modules/
+*.pem

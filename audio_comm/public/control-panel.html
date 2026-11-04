@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control Panel — Rover Audio</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #101318;
+      --surface: #181c24;
+      --border: #252a34;
+      --text: #cdd4e0;
+      --text-dim: #6b7280;
+      --accent: #3b82f6;
+      --accent-dim: rgba(59,130,246,0.12);
+      --green: #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
+      --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.12);
+      --amber: #f59e0b;
+      --amber-dim: rgba(245,158,11,0.12);
+    }
+
+    body {
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 100px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge.off { background: var(--red-dim); color: var(--red); }
+    .badge.on  { background: var(--green-dim); color: var(--green); }
+
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot.red   { background: var(--red); }
+    .dot.green { background: var(--green); animation: blink 2s infinite; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: .45; }
+    }
+
+    /* Layout */
+    .content {
+      flex: 1;
+      max-width: 540px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Peer banner */
+    .peer-banner {
+      text-align: center;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .peer-banner.waiting {
+      background: var(--amber-dim);
+      color: var(--amber);
+      border: 1px solid rgba(245,158,11,0.18);
+    }
+
+    .peer-banner.active {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid rgba(34,197,94,0.18);
+    }
+
+    .mute-notice {
+      display: none;
+      text-align: center;
+      font-size: 0.78rem;
+      padding: 7px 12px;
+      border-radius: 6px;
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid rgba(239,68,68,0.15);
+    }
+
+    .mute-notice.show { display: block; }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .card-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 64px;
+      border-radius: 6px;
+      background: var(--bg);
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+    }
+
+    .ctrl-group { text-align: center; }
+
+    .ctrl-btn {
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #fff;
+      transition: transform .15s, box-shadow .15s;
+    }
+
+    .ctrl-btn:hover { transform: scale(1.08); }
+    .ctrl-btn:active { transform: scale(.95); }
+
+    .ctrl-btn.mic {
+      background: var(--green);
+      box-shadow: 0 2px 12px rgba(34,197,94,0.3);
+    }
+
+    .ctrl-btn.mic.off {
+      background: var(--red);
+      box-shadow: 0 2px 12px rgba(239,68,68,0.3);
+    }
+
+    .ctrl-btn.spk {
+      background: var(--accent);
+      box-shadow: 0 2px 12px rgba(59,130,246,0.3);
+    }
+
+    .ctrl-btn.spk.off {
+      background: #4b5563;
+      box-shadow: 0 2px 12px rgba(75,85,99,0.2);
+    }
+
+    .ctrl-label {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    /* Slider */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slider-row .label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    /* Stats row */
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      font-size: 0.75rem;
+    }
+
+    .stat { text-align: center; }
+    .stat .lbl { color: var(--text-dim); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat .val { color: var(--text); font-weight: 600; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Control Panel</h1>
+    <div class="badge off" id="connBadge">
+      <span class="dot red" id="connDot"></span>
+      <span id="connText">Disconnected</span>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="peer-banner waiting" id="peerBanner">Waiting for rover...</div>
+    <div class="mute-notice" id="peerMuteNotice">Rover microphone is muted</div>
+
+    <div class="card">
+      <div class="card-label">Incoming — Rover</div>
+      <canvas id="cvIn"></canvas>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Outgoing — Microphone</div>
+      <canvas id="cvOut"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-group">
+        <button class="ctrl-btn mic" id="micBtn">MIC</button>
+        <div class="ctrl-label" id="micLbl">On</div>
+      </div>
+      <div class="ctrl-group">
+        <button class="ctrl-btn spk" id="spkBtn">SPK</button>
+        <div class="ctrl-label" id="spkLbl">On</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="slider-row">
+        <span class="label">Volume</span>
+        <input type="range" id="volSlider" min="0" max="100" value="80">
+      </div>
+    </div>
+
+    <div class="card stats">
+      <div class="stat"><div class="lbl">Latency</div><div class="val" id="sLatency">--</div></div>
+      <div class="stat"><div class="lbl">State</div><div class="val" id="sState">--</div></div>
+      <div class="stat"><div class="lbl">Codec</div><div class="val" id="sCodec">Opus</div></div>
+    </div>
+  </div>
+
+  <script src="js/control-panel.js"></script>
+</body>
+</html>

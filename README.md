@@ -15,6 +15,7 @@ electrical handoff the build needs.
 | ESP32-S3 (main) | `src/s3/` | drive, E-stop latch, 4× sonar, missions, dashboard + API, on-board ICMP ping; picks the camera's pan mode | **the only one** |
 | ESP32-CAM | `src/cam/` | MJPEG stream, QR decode + IPv4 check, motion detection, MG996R camera pan (scan + target following) | none (observations + its own pan servo) |
 | ESP32 DevKit (optional) | `src/audio/` | two-way audio relay (INMP441 mic, MAX98357A speaker) | none (status heartbeat only) |
+| Operator / Rover WebRTC | `audio_comm/` | full-duplex WebRTC 2-way audio link (operator control panel ↔ rover / phone / Bluetooth speaker & mic) | none |
 | Operator laptop | `data/` (served by the S3) | dashboard, gamepad teleop | rejected while AUTO is active |
 
 Shared code lives in `lib/rover_common/` (UART framing with CRC-8, strict IPv4 validation).
@@ -29,7 +30,7 @@ Shared code lives in `lib/rover_common/` (UART framing with CRC-8, strict IPv4 v
 | Sonar proximity stop at 100 ± 20 mm | S3 `runProximity` | compiled |
 | Motion tracking for 5 s | cam `runMotion` + `pan.cpp` (sweep, recentre) + S3 `runMotion` (5 s timer) | compiled |
 | Continuous traverse | S3 `runTraverse` | compiled; **can only end as FAILED**: no encoders or lane-end sensor fitted |
-| Two-way audio (teleop only) | `src/audio/` + dashboard Audio panel | compiled, optional hardware |
+| Two-way audio (teleop only) | `src/audio/` + dashboard Audio panel, or `audio_comm/` (WebRTC) | compiled, optional hardware / software bridge |
 | Colour and shape detection | — | **out of scope by team decision** (it is worth ×4 if added later) |
 | Touch target, box smash | — | not implemented (no sensor or actuator for them) |
 | Dashboard contract: `/api/status`, `/api/sensors`, `/api/mode`, `/api/drive`, `/api/estop`(+`/reset`), `/api/camera/stream`, `WS /ws` | `src/s3/web.cpp` | compiled |
@@ -75,6 +76,7 @@ Uploading, the dashboard file system and serial monitoring are covered step by s
 7. [Test checklist](docs/07_test_checklist.md): ordered pass/fail sheet
 8. [Status and assumptions](docs/08_status.md): what is compiled, tested and still unknown
 9. [Electrical schematic and build guide (PDF)](docs/Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf): for the electrical team: full schematic, wire schedule, pin maps, BOM, test sheet
+10. [WebRTC 2-Way Audio System](audio_comm/README.md): Node.js/WebRTC peer-to-peer audio link for control panel and rover with external Bluetooth/USB audio device routing
 
 ## Repository rules for the Dashboard Review
 
