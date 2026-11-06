@@ -77,6 +77,7 @@ Uploading, the dashboard file system and serial monitoring are covered step by s
 8. [Status and assumptions](docs/08_status.md): what is compiled, tested and still unknown
 9. [Electrical schematic and build guide (PDF)](docs/Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf): for the electrical team: full schematic, wire schedule, pin maps, BOM, test sheet
 10. [WebRTC 2-Way Audio System](audio_comm/README.md): Node.js/WebRTC peer-to-peer audio link for control panel and rover with external Bluetooth/USB audio device routing
+11. [Software guide](docs/09_software_guide.md): how the code works, every PlatformIO command, where to change things, known problems
 
 ## Repository rules for the Dashboard Review
 
