@@ -14,9 +14,9 @@ your name and the actual value. Build success is not a test result. Stage number
 | 1.4 | | dashboard file system | dashboard loads, no "files not uploaded" page | | |
 | 2.1 | E-stop | power-on | motor bus 0 V until ARM | V = | |
 | 2.2 | | ARM | motor bus = battery V | V = | |
-| 2.3 | | press E-stop | motor bus 0 V | V = | |
-| 2.4 | | release E-stop | motor bus **stays** 0 V | V = | |
-| 2.5 | | S3 sense | ESTOP latched on press; `reset` refused while pressed, accepted after release | | |
+| 2.3 | | switch E-stop OFF | motor bus 0 V | V = | |
+| 2.4 | | switch E-stop back ON | motor bus **stays** 0 V | V = | |
+| 2.5 | | S3 sense | ESTOP latched on OFF; `reset` refused while OFF, accepted after ON | | |
 | 3.1 | Wi-Fi + dashboard | telemetry median | ≤ 100 ms | ms = | |
 | 3.2 | | battery reading (if fitted) | within 0.1 V of multimeter after calibration | | |
 | 4.1 | Sonar front-center | 100 / 200 / 500 mm | each within ± 10 mm | | |
@@ -52,7 +52,7 @@ your name and the actual value. Build success is not a test result. Stage number
 | 11.2 | Mission motion | 5 s track | AUTO_COMPLETE | | |
 | 11.3 | Mission proximity (raised, then floor) | final gap | 100 ± 20 mm measured with a ruler | mm = | |
 | 11.4 | Mission traverse (raised) | blocked → FAILED; timeout → FAILED | as designed | | |
-| 12.1 | Integrated safety | E-stop during each mission | stops; release restarts nothing | | |
+| 12.1 | Integrated safety | E-stop during each mission | stops; switching back ON restarts nothing | | |
 | 12.2 | | camera unplugged in a camera mission | SAFE_STOP | | |
 | 12.3 | | sonar unplugged in a driving mission | SAFE_STOP | | |
 | 13.1 | Floor run | teleop forward / stop / turns at 30 % | controlled | | |

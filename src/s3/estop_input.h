@@ -1,4 +1,4 @@
-// Hardware E-stop sense input (second NC contact of the mushroom E-stop).
+// Hardware E-stop sense input (second pole of the E-stop switch).
 // This input only INFORMS the firmware. Cutting motor power is done by the
 // E-stop contact + contactor in hardware and never depends on this code.
 #pragma once

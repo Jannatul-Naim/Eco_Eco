@@ -39,7 +39,7 @@ constexpr int PIN_SONAR_ECHO[4] = {11, 13, 16, 18};
 constexpr int PIN_CAM_UART_TX = 41;  // S3 TX -> CAM GPIO13 (CAM RX)
 constexpr int PIN_CAM_UART_RX = 42;  // S3 RX <- CAM GPIO14 (CAM TX)
 
-// ---- Hardware E-stop sense: second NC contact block of the E-stop between
+// ---- Hardware E-stop sense: second pole of the E-stop switch between
 // this pin and GND, internal pull-up. Closed (LOW) = released.
 // Open, unplugged or broken wire (HIGH) = treated as PRESSED (fail-safe).
 constexpr int PIN_ESTOP_SENSE = 21;

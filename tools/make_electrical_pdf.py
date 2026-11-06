@@ -23,8 +23,8 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf"
-REV = "A"
-DATE = "2 Nov 2026"
+REV = "B"
+DATE = "6 Nov 2026"
 
 FONT_DIR = Path("/usr/share/fonts/truetype/dejavu")
 for name, file in (("Body", "DejaVuSansCondensed.ttf"), ("BodyB", "DejaVuSansCondensed-Bold.ttf"),
@@ -351,7 +351,7 @@ S3_RIGHT = [
     ("GPIO40", "spare", GREY), ("GPIO39", "spare", GREY), ("GPIO38", "avoid: RGB LED", GREY),
     ("GPIO37", "avoid: PSRAM", GREY), ("GPIO36", "avoid: PSRAM", GREY), ("GPIO35", "avoid: PSRAM", GREY),
     ("GPIO0", "avoid: strapping", GREY), ("GPIO45", "avoid: strapping", GREY), ("GPIO48", "avoid: RGB LED", GREY),
-    ("GPIO47", "avoid", GREY), ("GPIO21", "SW1 NC#2, E-stop sense", ORANGE),
+    ("GPIO47", "avoid", GREY), ("GPIO21", "SW1 pole B, E-stop sense", ORANGE),
     ("GPIO20", "avoid: USB", GREY), ("GPIO19", "avoid: USB", GREY), ("GND", "GND", BLACK), ("GND", "GND", BLACK),
 ]
 
@@ -443,7 +443,7 @@ def sheet_master(p, W, H):
     p.dot(400, 188, color=BLACK)
     p.text(380, 214, "D1 1N4007", size=6.8)
     p.link((370, 180), (370, 62), (330, 62), (330, 50))
-    p.lines(190, 134, ["SW1 E-STOP, red mushroom, latching", "NC#1 cuts the coil, NC#2 tells the S3"], size=6.8, lead=8.6)
+    p.lines(190, 134, ["SW1 E-STOP switch, 2-pole, ON = run", "pole A cuts the coil, pole B tells the S3"], size=6.8, lead=8.6)
     p.tag(247, 176, "U1 GPIO21", side="l", color=ORANGE)
     p.nc_contact(262, 176, half=15, color=ORANGE)
     p.wire((277, 176), (290, 176), color=BLACK)
@@ -776,7 +776,7 @@ def sheet_power(p, W, H):
 
 
 # ---------------------------------------------------------------- sheet 3, E-stop
-@sheet(3, "Hardware E-stop and contactor latch", "Design. Not built. Must pass inspection test before the rover runs (rule 1.2.3).", "A4")
+@sheet(3, "Hardware E-stop and contactor latch", "Design. Not built. E-stop is a simple switch by team decision: rule 1.2.1 is NOT met.", "A4")
 def sheet_estop(p, W, H):
     y = 60
     p.tag(66, y, "BAT+ after F1", side="l", color=RED, bold=True)
@@ -796,8 +796,8 @@ def sheet_estop(p, W, H):
     p.wire((116, y + 44), (252, y + 44), (252, y))
     p.wire((252, y), (290, y))
     p.nc_contact(308, y, half=18)
-    p.text(308, y - 18, "SW1 NC#1", size=8, bold=True, anchor="c")
-    p.text(313, y + 16, "terminals 11, 12", size=6.4, color=MUTE)
+    p.text(308, y - 18, "SW1 pole A", size=8, bold=True, anchor="c")
+    p.text(313, y + 16, "closed when ON", size=6.4, color=MUTE)
     p.wire((326, y), (392, y))
     p.dot(366, y, color=RED)
     p.coil(410, y, w=36, h=18)
@@ -825,43 +825,48 @@ def sheet_estop(p, W, H):
     p.text(10, sy + 15, "INPUT_PULLUP", size=6.6, color=MUTE)
     p.wire((66, sy), (150, sy), color=ORANGE)
     p.nc_contact(168, sy, half=18, color=ORANGE)
-    p.text(168, sy - 14, "SW1 NC#2", size=8, bold=True, anchor="c")
-    p.text(168, sy + 16, "terminals 21, 22", size=6.8, color=MUTE, anchor="c")
+    p.text(168, sy - 14, "SW1 pole B", size=8, bold=True, anchor="c")
+    p.text(168, sy + 16, "closed when ON", size=6.8, color=MUTE, anchor="c")
     p.wire((186, sy), (222, sy), color=BLACK)
     p.gnd(222, sy)
     p.link((168, sy - 22), (168, y + 62), (308, y + 62), (308, y - 2))
-    p.text(240, sy + 3, "Closed = LOW = released.", size=7)
-    p.text(240, sy + 13, "Open or broken wire = HIGH = treated as PRESSED.", size=7)
-    p.text(174, y + 74, "SW1: red mushroom, 22 mm, latching, twist to release, two NC blocks", size=6.8, bold=True)
+    p.text(240, sy + 3, "Switch ON: closed, LOW, run.", size=7)
+    p.text(240, sy + 13, "Switch OFF or broken wire: open, HIGH, treated as E-stop.", size=7)
+    p.text(174, y + 74, "SW1: 2-pole ON-OFF switch, latching. ON = run, OFF = stop.", size=6.8, bold=True)
     # behaviour
     rows = [["Action", "What happens", "Motor bus"],
             ["Power on", "K1 open. S3 boots with outputs disabled.", "0 V"],
-            ["Press ARM (E-stop released)", "Coil on, K1 closes, then K1 holds itself from the bus.", "12.6 V"],
-            ["Press E-stop", "NC#1 opens, coil drops, K1 opens. NC#2 opens, S3 latches ESTOP.", "0 V"],
-            ["Release E-stop", "Nothing restarts. K1 stays open and S3 stays in ESTOP.", "0 V"],
-            ["Restart on purpose", "Twist release, press ARM, then RESET E-STOP on the dashboard, then choose a mode.", "12.6 V"],
+            ["Press ARM (E-stop switch ON)", "Coil on, K1 closes, then K1 holds itself from the bus.", "12.6 V"],
+            ["Switch E-stop OFF", "Pole A opens, coil drops, K1 opens. Pole B opens, S3 latches ESTOP.", "0 V"],
+            ["Switch E-stop back ON", "Nothing restarts. K1 stays open and S3 stays in ESTOP.", "0 V"],
+            ["Restart on purpose", "Switch E-stop ON, press ARM, then RESET E-STOP on the dashboard, then choose a mode.", "12.6 V"],
             ["S3 crash, Wi-Fi lost, dashboard closed", "K1 is not affected. The E-stop still cuts power. S3 watchdog reboots with outputs LOW.", "no change"]]
     end = p.grid(12, 232, [176, 372, 58], rows, lead=13)
-    rules_end = p.note(630, 232, W - 642, ["Rule 1.2.2: the E-stop must not", "depend on software or wireless.",
-                               "Here SW1 cuts the coil directly.", "", "Rule 1.2.1: reach it from outside",
-                               "without crossing moving parts.", "", "KCD11 rocker switch from the notes",
-                               "is not acceptable as the E-stop."], title="Rules this meets", size=7.2, lead=9.6)
+    rules_end = p.note(630, 232, W - 642, ["Met, 1.2.2: SW1 cuts the coil",
+                                           "directly, no software or wireless.", "",
+                                           "NOT MET, 1.2.1: the rulebook asks",
+                                           "for a red mushroom-head button. The",
+                                           "team chose a switch. Get the organisers'",
+                                           "OK in writing before inspection.", "",
+                                           "Mount it outside, easy to reach without",
+                                           "crossing moving parts. Label it E-STOP."],
+                           title="Rules", size=7.2, lead=9.6)
     review_end = p.note(12, max(end, rules_end) + 8, W - 24, [
         "The hold path takes its power from the motor bus. After K1 opens, the bus can stay charged for a moment by the driver capacitors, and by the motors acting as",
-        "generators while the wheels still turn. If someone releases the E-stop in that moment, K1 could pull back in, which rule 1.2.4 forbids. The S3 would still hold outputs off, but the",
+        "generators while the wheels still turn. If someone switches the E-stop back ON in that moment, K1 could pull back in, which rule 1.2.4 forbids. The S3 would still hold outputs off, but the",
         "rule wants this in hardware. So: (1) run test T10 in Section 9 with the wheels spinning. (2) If K1 ever re-latches, fit one of these, and update this sheet. A contactor with an auxiliary NO",
         "contact is the clean fix: feed the hold path from BAT+ through that contact instead of from the bus. A 1 kΩ 1 W bleed resistor across the bus is the simple fix, but test it again.",
-        "Also check: K1 coil current against F4 and F7, and the DC rating of the E-stop contact blocks against that coil current. Neither is known until the parts are chosen."],
+        "Also check: K1 coil current against F4 and F7, and the DC rating of the E-stop switch contacts against that coil current. Neither is known until the parts are chosen."],
         title="Design review: check this before inspection (not tested, no part fitted for it yet)", size=7.2, lead=9.6)
     terminals = [["Terminal", "Connects to", "Terminal", "Connects to"],
-                 ["SW2 terminal 1", "F4, from BAT+", "K1 coil +", "SW1 terminal 12, D1 cathode"],
+                 ["SW2 terminal 1", "F4, from BAT+", "K1 coil +", "SW1 pole A side 2, D1 cathode"],
                  ["SW2 terminal 2", "N3", "K1 coil −", "STAR GND, D1 anode"],
-                 ["SW1 NC#1 terminal 11", "N3", "K1 main contact, side A", "F1 out, BAT+"],
-                 ["SW1 NC#1 terminal 12", "K1 coil +", "K1 main contact, side B", "J2 +, MOTOR BUS"],
-                 ["SW1 NC#2 terminal 21", "U1 GPIO21", "SW1 NC#2 terminal 22", "Logic GND"]]
+                 ["SW1 pole A, side 1", "N3", "K1 main contact, side A", "F1 out, BAT+"],
+                 ["SW1 pole A, side 2", "K1 coil +", "K1 main contact, side B", "J2 +, MOTOR BUS"],
+                 ["SW1 pole B, side 1", "U1 GPIO21", "SW1 pole B, side 2", "Logic GND"]]
     p.grid(12, review_end + 8, [128, 120, 128, 150], terminals, lead=12)
-    p.lines(552, review_end + 20, ["Terminal numbers are the usual IEC ones for NC blocks.",
-                       "Check the marks on the blocks you buy."], size=7.2, lead=10, color=MUTE)
+    p.lines(552, review_end + 20, ["Switch terminal marks vary. Find each pole with a meter:",
+                       "both must be closed in ON and open in OFF."], size=7.2, lead=10, color=MUTE)
 
 
 # ---------------------------------------------------------------- sheet 4, drive
@@ -1181,7 +1186,7 @@ def sheet_bench(p, W, H):
     # wires for pins into the S3 right edge: labels sit on the board side
     rows = [["Bench shortcut", "Why it is only for the desk", "On the rover"],
             ["Sonar VCC on 3.3 V, Echo direct", "HC-SR04 is a 5 V part; readings are 25 mm long at 100 mm", "5 V + R11/R12 divider + caps (Sheet 5)"],
-            ["GPIO21 jumper to GND", "Tells the S3 'E-stop released' with no real switch", "SW1 NC#2 (Sheet 3)"],
+            ["GPIO21 jumper to GND", "Tells the S3 'E-stop released' with no real switch", "SW1 pole B (Sheet 3)"],
             ["Servo on a bench 5 V supply", "No E-stop on that supply", "U7 on the motor bus (Sheets 2, 6)"],
             ["Camera on MB or DevKit VIN", "USB or board-fed power, no capacitors", "U6 + C1, C2 (Sheet 6)"],
             ["Jumper wires, no solder", "Rules 3.1.1 to 3.1.3 need soldered boards and crimped connectors", "Veroboard or PCB, female headers"]]
@@ -1272,10 +1277,10 @@ def wire_rows():
         ["W31", "F1 out", "F4, SW2", "BAT+ 12.6 V", "red", "22 AWG", "ARM path"],
         ["W32", "SW2", "N3", "0 / 12.6 V", "red", "22 AWG", ""],
         ["W33", "Bus point", "F7, N3", "MOTOR BUS", "red", "22 AWG", "Hold path"],
-        ["W34", "N3", "SW1 NC#1 terminal 11", "0 / 12.6 V", "red", "22 AWG", ""],
-        ["W35", "SW1 NC#1 terminal 12", "K1 coil +, D1 cathode", "0 / 12.6 V", "red", "22 AWG", ""],
-        ["W36", "U1 GPIO21", "SW1 NC#2 terminal 21", "E-stop sense, 3.3 V", "orange", "24 AWG", "Open = treated as pressed"],
-        ["W37", "SW1 NC#2 terminal 22", "Logic GND", "GND", "black", "24 AWG", ""],
+        ["W34", "N3", "SW1 pole A, side 1", "0 / 12.6 V", "red", "22 AWG", ""],
+        ["W35", "SW1 pole A, side 2", "K1 coil +, D1 cathode", "0 / 12.6 V", "red", "22 AWG", ""],
+        ["W36", "U1 GPIO21", "SW1 pole B, side 1", "E-stop sense, 3.3 V", "orange", "24 AWG", "Open = treated as E-stop"],
+        ["W37", "SW1 pole B, side 2", "Logic GND", "GND", "black", "24 AWG", ""],
         ["W40", "U1 GPIO4", "U4 PWM", "PWM 3.3 V, 20 kHz", "yellow", "24 AWG", "R1 10 kΩ to GND"],
         ["W41", "U1 GPIO5", "U4 DIR", "DIR 3.3 V", "blue", "24 AWG", "R2 10 kΩ to GND"],
         ["W42", "U1 GPIO6", "U5 PWM", "PWM 3.3 V, 20 kHz", "yellow", "24 AWG", "R3 10 kΩ to GND"],
@@ -1309,7 +1314,7 @@ def bom_rows():
         ["BT1", "3S Li-ion pack with BMS, XT60 lead", "1", R, "11.1 V nominal, 12.6 V full. BMS ≥25 A continuous. For example 3S2P high-drain 18650, about 5 Ah."],
         ["—", "3S Li-ion CC/CV charger, 12.6 V, 1–2 A", "1", R, "Never a generic 12 V adapter."],
         ["—", "Fire-resistant battery bag", "1", R, "Rule 3.3.2: carry and charge in it."],
-        ["SW1", "Red mushroom E-stop, latching, 22 mm, two NC blocks", "1", f"{R} (required by rule 1.2.1)", "Check contact DC rating against K1 coil current."],
+        ["SW1", "2-pole ON-OFF switch (DPST), latching, labelled E-STOP, red if you can get it", "1", 'team decision, 6 Nov 2026. <font color="#B03A2E"><b>Does not meet rule 1.2.1</b></font>', "Contacts DC-rated above the K1 coil current at ≥14 V DC. The single-pole KCD11 from the notes cannot both cut the coil and tell the S3."],
         ["K1", "DC contactor, 12 V coil, contacts ≥40 A at ≥14 V DC", "1", R, "Check the DC rating, not AC. An auxiliary NO contact is a plus (Sheet 3)."],
         ["SW2", "Momentary NO push button, green, ARM", "1", R, "The deliberate restart (rule 1.2.4)."],
         ["D1", "1N4007 across K1 coil", "1", R, "Cathode to coil +. Skip if K1 has a built-in diode."],
@@ -1352,18 +1357,18 @@ def test_rows():
         ["T4", "Echo divider", "5 V on the sonar side of each divider. Meter on the GPIO side, board not plugged in.", "3.2 V (3.33 V with 2 kΩ)", blank, "☐"],
         ["T5", "S3 from U6", "USB unplugged. Plug in U1 only.", "S3 boots, Wi-Fi joins, no restarts", blank, "☐"],
         ["T6", "Camera from U6", "Plug in U2 with C1, C2. Watch the dashboard for 60 s.", "Link ok, no restarts", blank, "☐"],
-        ["T7", "Power on, E-stop released", "All fuses in, no motors, no servo. Battery on.", "K1 open, bus 0 V", blank, "☐"],
+        ["T7", "Power on, E-stop switch ON", "All fuses in, no motors, no servo. Battery on.", "K1 open, bus 0 V", blank, "☐"],
         ["T8", "ARM", "Press and release ARM.", "K1 closes and stays closed, bus = battery", blank, "☐"],
-        ["T9", "E-stop", "Press E-stop.", "K1 opens, bus 0 V, dashboard shows ESTOP", blank, "☐"],
-        ["T10", "Release does not restart", "Release E-stop slowly, then again quickly about 1 s after pressing. Repeat after T17 with wheels raised and spinning.", "K1 stays open, bus stays 0 V", blank, "☐"],
+        ["T9", "E-stop", "Switch E-stop OFF.", "K1 opens, bus 0 V, dashboard shows ESTOP", blank, "☐"],
+        ["T10", "Release does not restart", "Switch it back ON after a few seconds, then again about 1 s after switching OFF. Repeat after T17 with wheels raised and spinning.", "K1 stays open, bus stays 0 V", blank, "☐"],
         ["T11", "Sense wire broken", "Unplug the GPIO21 wire.", "S3 latches ESTOP", blank, "☐"],
         ["T12", "Set U7", "ARM on, servo not plugged in. Adjust the U7 output.", "4.9–5.1 V", blank, "☐"],
-        ["T13", "Servo from U7", "Plug in SV1 with C3. Move the pan slider. Press E-stop while it moves.", "Moves 45–135°; stops when the bus drops", blank, "☐"],
+        ["T13", "Servo from U7", "Plug in SV1 with C3. Move the pan slider. Switch E-stop OFF while it moves.", "Moves 45–135°; stops when the bus drops", blank, "☐"],
         ["T14", "Driver inputs low at reset", "Meter on GPIO4–7 at the driver side while pressing RST on the S3. Motors off.", "About 0 V", blank, "☐"],
         ["T15", "Sonar accuracy on 5 V", "Ruler, flat object fixed in place, sonar fixed. 10, 20, 50 cm. Hands away. Close spare dashboard tabs.", "Note the error. Window at 100 mm is ±20 mm", blank, "☐"],
         ["T16", "Voltage sense", "Compare the dashboard to a meter, then set BATTERY_CAL_GAIN.", "Matches the meter after calibration", blank, "☐"],
         ["T17", "Each motor alone", "Wheels raised. One motor at a time on low duty.", "Same direction per side", blank, "☐"],
-        ["T18", "Stop test for inspection", "Wheels raised, motors running. Press E-stop.", "Wheels stop, bus 0 V on a meter", blank, "☐"],
+        ["T18", "Stop test for inspection", "Wheels raised, motors running. Switch E-stop OFF.", "Wheels stop, bus 0 V on a meter", blank, "☐"],
     ]
 
 
@@ -1388,6 +1393,7 @@ def build_story():
                   "<b>Confirm the driver.</b> The 10 A dual H-bridge in the notes is too small for the baseline motors. Use MD30C or BTS7960.",
                   "<b>Never connect the 5 V sonar Echo directly to an S3 pin.</b> Use the divider on Sheet 5.",
                   "<b>Never power the servo</b> from a board's 5 V pin or from the logic buck.",
+                  "<b>E-stop: the team chose a 2-pole switch</b> instead of the red mushroom-head button rule 1.2.1 asks for. Get the organisers' approval in writing before you build it. An inspector may refuse it, and a rover that fails the E-stop test may not run (rule 1.2.3).",
                   "<b>No breadboard anywhere on the rover</b> (rule 3.1.2). The rover is not allowed to run with one.",
                   "<b>Check your board's silkscreen</b> against Sheet 1. If a label differs, stop and ask before you solder."])
     s.append(para("Contents", H2))
@@ -1407,11 +1413,11 @@ def build_story():
                     ["F1, F3–F8", "fuses (F2 not used)", "U2", "ESP32-CAM: video, QR, motion, servo"],
                     ["J1–J6", "XT power connectors", "U3", "ESP32 DevKit: audio, optional"],
                     ["K1", "contactor", "U4, U5", "motor drivers, left and right"],
-                    ["SW1", "E-stop", "U6, U7", "5 V buck converters, logic and servo"],
+                    ["SW1", "E-stop switch", "U6, U7", "5 V buck converters, logic and servo"],
                     ["SW2", "ARM button", "U8, U9, LS1", "microphone, amplifier, speaker, optional"],
                     ["D1", "coil flyback diode", "US1–US4", "sonars (US, so they are not confused with the S3)"],
                     ["M1–M4", "motors", "SV1", "MG996R pan servo"],
-                    ["R, C", "resistors, capacitors", "N3", "junction of ARM, hold path and E-stop NC#1"]], [58, 150, 58, a4w - 266]))
+                    ["R, C", "resistors, capacitors", "N3", "junction of ARM, hold path and E-stop pole A"]], [58, 150, 58, a4w - 266]))
     s.append(para("How the parts fit together", H2))
     s += bullets(["<b>S3 (U1)</b> is the only board that can command the motors. It runs missions, the sonars and the dashboard.",
                   "<b>ESP32-CAM (U2)</b> handles video, QR, motion and the pan servo. It talks to the S3 over three wires, not Wi-Fi: S3 TX, S3 RX and GND.",
@@ -1425,13 +1431,14 @@ def build_story():
                     ["Battery", "3S Li-ion, BMS ≥25 A", "Stall worst case is 22 A", "Choose and buy with its charger and bag", ""],
                     ["Contactor K1", "12 V coil, ≥40 A DC", "Coil current sets F4, F7 and the E-stop contact rating", "Read its datasheet. Prefer one with an auxiliary NO contact (Sheet 3)", ""],
                     ["Fan", "12 V 4-inch, on F3", "Its current adds to the 3 A branch", "Read the label", ""],
-                    ["Sonar count", "4 planned, 1 owned", "Reverse is blocked until the rear sonar is fitted", "Buy at least the rear one next", ""]],
+                    ["Sonar count", "4 planned, 1 owned", "Reverse is blocked until the rear sonar is fitted", "Buy at least the rear one next", ""],
+                    ["E-stop SW1", "2-pole ON-OFF switch", "Rule 1.2.1 asks for a red mushroom-head button; a rover that fails the E-stop test may not run", "Ask the organisers in writing", "Switch, team decision 6 Nov 2026"]],
                    [62, 96, 118, 150, a4w - 426]))
     # ---- section 3
     s.append(PageBreak())
     s.append(Heading("3. Rulebook checklist", H1))
     s.append(table([["Rule", "Requires", "This design", "Where"],
-                    ["1.2.1", "Visible red mushroom E-stop, reachable from outside without crossing moving parts", "SW1. Mounting is for the build team", "Sheet 3"],
+                    ["1.2.1", "Visible red mushroom E-stop, reachable from outside without crossing moving parts", '<font color="#B03A2E"><b>NOT MET</b></font> by team decision: SW1 is a 2-pole switch. Get the organisers\' approval in writing', "Sheet 3"],
                     ["1.2.2", "Removes power from all actuators, in hardware, without software or wireless", "SW1 cuts the K1 coil. Motors and servo are on the bus", "Sheet 3"],
                     ["1.2.3", "Tested at inspection", "Tests T9 and T18", "Section 9"],
                     ["1.2.4", "Release must not restart motion", "K1 latch needs ARM. Check the re-latch risk", "Sheet 3, T10"],
@@ -1484,7 +1491,7 @@ def build_story():
                     ["16", "PIN_SONAR_ECHO[2]", "in", "US3 Echo via R15, R16", "", "no"],
                     ["17", "PIN_SONAR_TRIG[3]", "out", "US4 Trig", "rear", "no"],
                     ["18", "PIN_SONAR_ECHO[3]", "in", "US4 Echo via R17, R18", "", "no"],
-                    ["21", "PIN_ESTOP_SENSE", "in, pull-up", "SW1 NC#2 to GND", "LOW = released", t_yes + ", jumper"],
+                    ["21", "PIN_ESTOP_SENSE", "in, pull-up", "SW1 pole B to GND", "LOW = switch ON", t_yes + ", jumper"],
                     ["41", "PIN_CAM_UART_TX", "out", "U2 IO13", "115200 8N1", t_yes],
                     ["42", "PIN_CAM_UART_RX", "in", "U2 IO14", "115200 8N1", t_yes]],
                    [30, 100, 50, 124, 90, a4w - 394]))
@@ -1510,7 +1517,7 @@ def build_story():
     s.append(Heading("7. Bill of materials", H1))
     s.append(table(bom_rows(), [78, 240, 26, 136, lw - 480]))
     s.append(para("Shopping list (beyond what the team owns)", H2))
-    s.append(para("3 × HC-SR04 · rigid pan bracket · 2 × MD30C (or confirm owned drivers) · 4 × Pololu #4744 (or #4754 with encoders, or confirm the 25GA rating) · red mushroom E-stop with 2 NC blocks · 12 V-coil contactor ≥40 A DC, ideally with an auxiliary NO contact · green NO push button · fuse holders and 25, 15, 15, 3, 3, 1, 1 A blade fuses · XT60 × 2 pairs, XT30 × 4 pairs · 2 × 5 V buck converters ≥3 A · 3S Li-ion pack with ≥25 A BMS, 12.6 V charger, fire-resistant bag · resistors: 1 k × 4, 1.8 k × 4, 10 k × 6, 100 k × 2, 22 k × 2 · capacitors: 470 µF × 1, 1000 µF × 1, 100 µF × 4, 100 nF × 7 · 1N4007 × 1 · wire · veroboard, headers, crimp connectors. Optional audio: INMP441, MAX98357A, 4 Ω 3 W speaker.", SMALL))
+    s.append(para("3 × HC-SR04 · rigid pan bracket · 2 × MD30C (or confirm owned drivers) · 4 × Pololu #4744 (or #4754 with encoders, or confirm the 25GA rating) · 2-pole ON-OFF E-stop switch, DC-rated above the K1 coil current · 12 V-coil contactor ≥40 A DC, ideally with an auxiliary NO contact · green NO push button · fuse holders and 25, 15, 15, 3, 3, 1, 1 A blade fuses · XT60 × 2 pairs, XT30 × 4 pairs · 2 × 5 V buck converters ≥3 A · 3S Li-ion pack with ≥25 A BMS, 12.6 V charger, fire-resistant bag · resistors: 1 k × 4, 1.8 k × 4, 10 k × 6, 100 k × 2, 22 k × 2 · capacitors: 470 µF × 1, 1000 µF × 1, 100 µF × 4, 100 nF × 7 · 1N4007 × 1 · wire · veroboard, headers, crimp connectors. Optional audio: INMP441, MAX98357A, 4 Ω 3 W speaker.", SMALL))
     s.append(callout(para("<b>Buy first:</b> the resistors and capacitors for the sonars. They are cheap, and the sonar work is waiting on them.", SMALL), lw))
     # ---- section 8
     s.append(NextPageTemplate("PortA4"))
@@ -1573,9 +1580,11 @@ def build_story():
                     ["Sonar strays at long range", "Suspected supply noise, not proven", "Capacitors, 5 V, then a firmware filter if still needed"],
                     ["Possible K1 re-latch on quick release", "Design concern, not seen, not built", "Test T10, then the fix on Sheet 3"],
                     ["S3 5V pin as a supply input", "Not tested. It did not feed the camera as an output", "Test T5 with USB unplugged"],
+                    ["E-stop is a switch, not the mushroom-head button rule 1.2.1 asks for", "Team decision, 6 Nov 2026", "Organisers' approval in writing before inspection"],
                     ["Dashboard access is not protected yet", "Software team", "Fix before motors are connected"]], [190, 190, a4w - 380]))
     s.append(para("Revision history", H2))
-    s.append(table([["Rev", "Date", "Change"], [REV, DATE, "First issue. Adds J2, sonar capacitors C11–C18 and the K1 re-latch check to the design in docs/03_electrical.md."]], [34, 70, a4w - 104]))
+    s.append(table([["Rev", "Date", "Change"], ["A", "2 Nov 2026", "First issue. Adds J2, sonar capacitors C11–C18 and the K1 re-latch check to the design in docs/03_electrical.md."],
+                    ["B", "6 Nov 2026", "E-stop SW1 changed from the red mushroom button to a 2-pole ON-OFF switch, by team decision. Rule 1.2.1 marked NOT MET."]], [34, 70, a4w - 104]))
     return s
 
 

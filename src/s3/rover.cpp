@@ -585,7 +585,7 @@ CmdResult Rover::engageEstop(CmdSource src) {
 CmdResult Rover::resetEstop(CmdSource src) {
   const uint32_t now = millis();
   if (state_ != State::EStop) return CmdResult::conflict("not in E-stop");
-  if (estop_.pressed()) return CmdResult::conflict("hardware E-stop still pressed (twist to release) or sense wire open");
+  if (estop_.pressed()) return CmdResult::conflict("hardware E-stop switch still OFF or sense wire open");
   estopLatched_ = false;
   estopSource_ = "none";
   mode_ = Mode::Idle;

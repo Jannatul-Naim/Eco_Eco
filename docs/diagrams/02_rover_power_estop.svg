@@ -88,12 +88,12 @@ text.c-a { fill: #8F6B00; font-weight: 600; }
       <circle class="dot-5" cx="395" cy="270" r="4"/>
 
       <rect class="box-stop" x="405" y="232" width="105" height="150" rx="9"/>
-      <text class="t-w c-5" x="457" y="226" text-anchor="middle">Red mushroom E-stop</text>
+      <text class="t-w c-5" x="457" y="226" text-anchor="middle">E-stop switch, 2-pole</text>
       <rect class="box" x="415" y="250" width="85" height="40" rx="3"/>
-      <text x="457" y="275" text-anchor="middle">NC #1</text>
+      <text x="457" y="275" text-anchor="middle">pole A</text>
       <path class="wire thin dash" d="M457 290V325"/>
       <rect class="box" x="415" y="325" width="85" height="40" rx="3"/>
-      <text x="457" y="350" text-anchor="middle">NC #2</text>
+      <text x="457" y="350" text-anchor="middle">pole B</text>
 
       <path class="wire w-5" d="M500 270H525"/>
       <rect class="box" x="525" y="250" width="70" height="40" rx="3"/>
@@ -102,7 +102,7 @@ text.c-a { fill: #8F6B00; font-weight: 600; }
       <path class="wire" d="M595 270H612V284"/>
       <path class="wire thin" d="M600 284H624M605 290H619M609 296H615"/>
 
-      <!-- NC 2 to S3 -->
+      <!-- pole B to S3 -->
       <path class="wire" d="M415 345H385V360"/>
       <path class="wire thin" d="M373 360H397M378 366H392M382 372H388"/>
       <path class="wire w-o" d="M500 345H670"/>

@@ -261,7 +261,7 @@ function render(st, se) {
   let detail = st.detail;
   if (es.active) {
     detail = es.hw_pressed
-      ? 'E-STOP: twist the red mushroom button to release it, then RESET E-STOP'
+      ? 'E-STOP: switch the E-stop back ON, then RESET E-STOP'
       : `E-STOP (${es.source}): press RESET E-STOP when safe`;
   } else if (auto) {
     detail = `CONTROLS LOCKED · ${st.detail}`;

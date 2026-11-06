@@ -117,17 +117,17 @@ Type `status` and press Enter, then `sonar`. With nothing wired the front-center
 
 ## Stage 2: hardwired E-stop (motors still disconnected)
 
-Build the circuit in [03_electrical.md](03_electrical.md) §3.4 on veroboard: E-stop NC #1 in
-the contactor coil path, ARM button, hold path, flyback diode, NC #2 to S3 GPIO21. Leave the
+Build the circuit in [03_electrical.md](03_electrical.md) §3.4 on veroboard: E-stop switch pole A in
+the contactor coil path, ARM button, hold path, flyback diode, pole B to S3 GPIO21. Leave the
 driver branch fuses **F5/F6 out** and the drivers disconnected.
 
-1. Battery in, E-stop released. Measure the motor bus: **0 V** (contactor open at power-on).
+1. Battery in, E-stop switch ON. Measure the motor bus: **0 V** (contactor open at power-on).
 2. Press ARM: the contactor clicks and the motor bus reads the battery voltage.
-3. Press the E-stop: the motor bus drops to **0 V**.
-4. Release the E-stop: the motor bus **stays at 0 V**.
-5. On the S3 console, with the E-stop released, type `reset`. Expected: `OK (200): E-stop reset; mode idle`.
-   Press the E-stop: the event `-> ESTOP: hardware E-stop pressed (or sense wire open)` appears.
-   Type `reset` while it is held: `REJECTED (409): hardware E-stop still pressed ...`.
+3. Switch the E-stop OFF: the motor bus drops to **0 V**.
+4. Switch it back ON: the motor bus **stays at 0 V**.
+5. On the S3 console, with the E-stop switch ON, type `reset`. Expected: `OK (200): E-stop reset; mode idle`.
+   Switch it OFF: the event `-> ESTOP: hardware E-stop pressed (or sense wire open)` appears.
+   Type `reset` while it is OFF: `REJECTED (409): hardware E-stop still pressed ...`.
 
 **Send back:** the four multimeter readings and the console lines from step 5.
 

@@ -14,6 +14,9 @@ assumes, how each one is powered and wired, and which items still need confirmin
 Rulebook constraints that shape this design (Mechanical & Electrical Rulebook V1.3):
 
 - 1.2: a red **mushroom-head** E-stop that removes power from all actuators **in hardware**. Releasing it must not restart motion.
+  **Not met by team decision (6 Nov 2026):** the team uses a 2-pole ON-OFF switch instead of the mushroom-head
+  button. Get the organisers' approval in writing before building it. The inspector may refuse it, and a rover
+  that fails the E-stop test may not run (1.2.3).
 - 3.1: circuits on **soldered veroboard/perfboard or PCB**. No breadboards anywhere on the rover.
 - 3.2: **XT30/XT60/XT90 or Deans** on every power connection between the battery, E-stop, distribution and drivers. Red wire for every positive line, black for ground, any other colour for signals.
 - 3.3: nominal battery ≤ 24 V, fused, secured, and carried and charged in a fire-resistant bag.
@@ -48,7 +51,7 @@ divider so the cap follows the real voltage.
 | P1 | 3S Li-ion pack (11.1 V nominal, 12.6 V full) **with BMS**, XT60 lead | 1 | RECOMMENDED | e.g. 3S2P of high-drain 18650 cells (≥ 15 A continuous each) ≈ 5 Ah. **BMS continuous rating ≥ 25 A.** Typical drive current is about 2–6 A, stall worst case 22 A. |
 | P2 | Matching 3S Li-ion CC/CV charger, 12.6 V, 1–2 A | 1 | RECOMMENDED | never a generic 12 V adapter |
 | P3 | Fire-resistant battery bag (LiPo-safe) | 1 | RECOMMENDED | rulebook 3.3.2: carry and charge in it |
-| P4 | Red **mushroom-head latching E-stop** (twist to release), 22 mm, with **two NC contact blocks** | 1 | RECOMMENDED (required by rule 1.2.1) | NC #1 breaks the contactor coil, NC #2 tells the S3 (`PIN_ESTOP_SENSE`). The KCD11 rocker in the team's notes is **not** acceptable as the E-stop. |
+| P4 | **2-pole ON-OFF E-stop switch** (DPST, latching), labelled E-STOP, red if possible, contacts DC-rated above the K1 coil current at ≥ 14 V DC | 1 | team decision (6 Nov 2026); **does not meet rule 1.2.1**, which asks for a red mushroom-head button | pole A breaks the contactor coil, pole B tells the S3 (`PIN_ESTOP_SENSE`). ON = run, OFF = stop. The single-pole KCD11 in the team's notes cannot do both jobs. |
 | P5 | DC contactor / power relay, **12 V coil**, contacts rated **≥ 40 A at ≥ 14 V DC** | 1 | RECOMMENDED | check the DC (not AC) contact rating on the datasheet. A sealed automotive 40 A relay with a DC rating is acceptable. |
 | P6 | Momentary NO push button, green, "ARM" | 1 | RECOMMENDED | the deliberate restart action (rule 1.2.4) |
 | P7 | Flyback diode across the contactor coil (1N4007) | 1 | RECOMMENDED | cathode to coil +. Omit if the relay has a built-in diode (check polarity). |
@@ -98,7 +101,7 @@ the strength of this document; decide per line:
 | "25GA motor 300 rpm × 4" | Pololu #4744 | **UNKNOWN rating.** Before choosing the fuses and driver, read the motor label or datasheet for voltage, no-load current and stall current. Change D1 and this section together. |
 | "HC-SR04 (2 pcs)" | 4 | Any subset works; unfitted ones report `not_fitted`. With two, fit front-center and rear. |
 | "INMP441, MAX98357A, 4 Ω 3 W speaker" on the main ESP (flow diagram) | separate optional ESP32 board | Kept separate on purpose (no audio code on the motor controller). Moving audio onto the S3 would need a port; it is not done. |
-| "Kill switch: KCD11 mini rocker (red)" | red mushroom E-stop + contactor | A KCD11 is not a mushroom-head E-stop (rule 1.2.1) and is rated for small AC loads. Keep it out of the motor path. It may switch the 3 A logic branch only if its DC rating covers that. |
+| "Kill switch: KCD11 mini rocker (red)" | 2-pole switch + contactor (team decision, 6 Nov 2026) | A switch is not the mushroom-head E-stop rule 1.2.1 asks for. The KCD11 itself is single-pole and rated for small AC loads, so it cannot both cut the coil and tell the S3: use a 2-pole switch DC-rated above the K1 coil current. Keep it out of the motor path. It may switch the 3 A logic branch only if its DC rating covers that. |
 | "12 V 4-inch fan" | P13 | Added, current unknown. |
 
 ## 3.3 Power plan
@@ -139,11 +142,11 @@ once it drops out it stays out until ARM is pressed:
 
 ```
  BAT+ (after F1) ──F4 1A──[ ARM, momentary NO ]──┐
-                                                  ├──[ E-stop NC #1 ]──●── K1 coil (+) ──┐
+                                                  ├──[ E-stop pole A ]─●── K1 coil (+) ──┐
  MOTOR BUS (K1 output) ──F7 1A────────────────────┘                    │                 │
                                                           1N4007 ──────┘ cathode at (+)   │
                                                           anode ─────────────────────────●─ GND
- S3 GPIO21 (INPUT_PULLUP) ──[ E-stop NC #2 ]── GND        (closed = released, open/broken = PRESSED)
+ S3 GPIO21 (INPUT_PULLUP) ──[ E-stop pole B ]── GND        (closed = switch ON, open/broken = E-stop)
 ```
 
 How it behaves:
@@ -151,18 +154,18 @@ How it behaves:
 | Action | Result |
 |---|---|
 | Power on | K1 open; motors and servo unpowered. The S3 boots with outputs disabled. |
-| Press **ARM** (E-stop released) | coil energised → K1 closes → motor bus live → coil now held from the motor bus |
-| Press **E-stop** | NC #1 opens → coil drops → K1 opens → motor bus dead (motors **and** servo). NC #2 opens → S3 latches ESTOP. |
-| Release E-stop | **nothing restarts.** K1 stays open (its hold path is dead) and the S3 stays in ESTOP. |
-| Restart | twist-release the E-stop → press ARM (power) → RESET E-STOP in the dashboard (software) → choose a mode |
+| Press **ARM** (E-stop switch ON) | coil energised → K1 closes → motor bus live → coil now held from the motor bus |
+| Switch the **E-stop OFF** | pole A opens → coil drops → K1 opens → motor bus dead (motors **and** servo). Pole B opens → S3 latches ESTOP. |
+| Switch the E-stop back ON | **nothing restarts.** K1 stays open (its hold path is dead) and the S3 stays in ESTOP. |
+| Restart | switch the E-stop ON → press ARM (power) → RESET E-STOP in the dashboard (software) → choose a mode |
 | S3 crashes, Wi-Fi drops, dashboard closes | K1 is unaffected; the E-stop still cuts power. The S3 watchdog reboots with outputs LOW. |
 
-Check at inspection: with the motors running on the bench (wheels raised), press the E-stop and
+Check at inspection: with the motors running on the bench (wheels raised), switch the E-stop OFF and
 the wheels must stop and the motor bus must read 0 V on a multimeter.
 
 **Check for re-latching.** The hold path takes its power from the motor bus. After K1 opens, the bus can stay
 charged for a moment by the driver capacitors, and by the motors acting as generators while the wheels still
-turn. If the E-stop is released in that moment, K1 could pull back in, which rule 1.2.4 forbids. Test it with
+turn. If the E-stop is switched back ON in that moment, K1 could pull back in, which rule 1.2.4 forbids. Test it with
 the wheels spinning. If it re-latches, feed the hold path from BAT+ through an auxiliary NO contact on K1, or
 fit a bleed resistor across the bus (1 kΩ 1 W) and test again. Not tested yet; nothing is built.
 
@@ -279,7 +282,7 @@ No connection to the S3 other than common power and ground. It talks over Wi-Fi 
 
 3 × HC-SR04 · rigid pan bracket · 2 × MD30C (or confirm the owned
 drivers) · 4 × Pololu #4744 (or #4754 with encoders; or confirm the owned 25GA motors' rating) ·
-1 × red mushroom E-stop with 2 NC blocks · 1 × 12 V-coil contactor ≥ 40 A DC · 1 × green NO
+1 × 2-pole ON-OFF E-stop switch, DC-rated above the K1 coil current · 1 × 12 V-coil contactor ≥ 40 A DC · 1 × green NO
 push button · fuse holders and 25/15/15/3/3/1/1 A blade fuses · XT60 × 2 pairs, XT30 × 4 pairs ·
 2 × 5 V buck converters (logic and servo, each ≥ 3 A) · 3S Li-ion pack with ≥ 25 A BMS + 12.6 V charger +
 fire-resistant bag · resistors (1 k × 4, 1.8 k × 4, 10 k × 6, 100 k × 2, 22 k × 2) · capacitors

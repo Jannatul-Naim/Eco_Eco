@@ -33,7 +33,7 @@ The rules this layout enforces:
   S3. The laptop is not involved: commands from it
   are rejected while `mode == auto` (`Rover::drive`, `setPan`), except E-stop and abort.
 - **The hardware E-stop does not depend on software.** It opens the motor-power contactor
-  directly. The S3 also reads a second NC contact block and latches `ESTOP`. A software E-stop
+  directly. The S3 also reads the E-stop switch's second pole and latches `ESTOP`. A software E-stop
   (dashboard, console, gamepad B button) cuts the PWM outputs and latches the same state, but it
   is an extra layer, not a substitute.
 

@@ -33,7 +33,7 @@ constexpr int SONAR_FACE_TO_BUMPER_MM[4] = {0, 0, 0, 0};
 constexpr float SONAR_SCALE[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
 // ---- Hardware E-stop sense ---------------------------------------------------
-// true: PIN_ESTOP_SENSE is wired to a second NC contact of the E-stop.
+// true: PIN_ESTOP_SENSE is wired to the second pole of the E-stop switch.
 // If true and the wire is missing, the firmware stays in ESTOP (fail-safe).
 constexpr bool ESTOP_SENSE_FITTED = true;
 

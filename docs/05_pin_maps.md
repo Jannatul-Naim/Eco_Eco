@@ -33,7 +33,7 @@ camera link.
 | 16 | sonar 2 ECHO | in | front_right Echo via divider | |
 | 17 | sonar 3 TRIG | out | rear Trig | |
 | 18 | sonar 3 ECHO | in | rear Echo via divider | |
-| 21 | `PIN_ESTOP_SENSE` | in, pull-up | E-stop NC contact #2 → GND | LOW = released, HIGH/open = pressed |
+| 21 | `PIN_ESTOP_SENSE` | in, pull-up | E-stop switch pole B → GND | LOW = switch ON (run), HIGH/open = OFF or wire broken |
 | 41 | `PIN_CAM_UART_TX` | out | ESP32-CAM GPIO13 (RX) | 115200 8N1 |
 | 42 | `PIN_CAM_UART_RX` | in | ESP32-CAM GPIO14 (TX) | |
 | 8, 9, 39, 40 | spare | — | — | believed safe on DevKitC-1-style boards (8/9 were the PCA9685 I²C pins) |

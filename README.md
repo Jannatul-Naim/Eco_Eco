@@ -4,7 +4,7 @@ Team **Eco eco**'s rover for the URRT Robo Cup (UIU Rescue Rover Team). This rep
 software and autonomy side: firmware for three boards, the operator dashboard, and the
 electrical handoff the build needs.
 
-> **Safety first.** The red mushroom E-stop cuts motor power in hardware. Nothing in this
+> **Safety first.** The E-stop switch cuts motor power in hardware. Nothing in this
 > repository replaces it. Follow [docs/06_bringup_guide.md](docs/06_bringup_guide.md) stage by
 > stage. The first stage runs with the motor drivers and motors **disconnected**.
 
