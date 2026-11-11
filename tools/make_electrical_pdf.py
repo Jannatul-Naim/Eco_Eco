@@ -23,8 +23,8 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf"
-REV = "B"
-DATE = "6 Nov 2026"
+REV = "C"
+DATE = "11 Nov 2026"
 
 FONT_DIR = Path("/usr/share/fonts/truetype/dejavu")
 for name, file in (("Body", "DejaVuSansCondensed.ttf"), ("BodyB", "DejaVuSansCondensed-Bold.ttf"),
@@ -50,6 +50,7 @@ PURPLE = HEX("#7D3C98")
 ORANGE = HEX("#D35400")
 TEAL = HEX("#0E7C86")
 GREY = HEX("#8A8578")
+BROWN = HEX("#8B5A2B")
 
 
 # ---------------------------------------------------------------- firmware cross-check
@@ -60,8 +61,8 @@ def check_pins():
     audio = (ROOT / "src/audio/config_audio.h").read_text()
     expect = [
         (s3, r"PIN_BATT_ADC = (\d+)", "1"), (s3, r"PIN_MOTOR_BUS_ADC = (\d+)", "2"),
-        (s3, r"PIN_LEFT_A = (\d+)", "4"), (s3, r"PIN_LEFT_B = (\d+)", "5"),
-        (s3, r"PIN_RIGHT_A = (\d+)", "6"), (s3, r"PIN_RIGHT_B = (\d+)", "7"),
+        (s3, r"PIN_LEFT_RPWM = (\d+)", "4"), (s3, r"PIN_LEFT_LPWM = (\d+)", "5"),
+        (s3, r"PIN_RIGHT_RPWM = (\d+)", "6"), (s3, r"PIN_RIGHT_LPWM = (\d+)", "7"),
         (s3, r"PIN_DRIVER_EN = (\d+)", "15"), (s3, r"PIN_SONAR_TRIG\[4\] = \{([^}]+)\}", "10, 12, 14, 17"),
         (s3, r"PIN_SONAR_ECHO\[4\] = \{([^}]+)\}", "11, 13, 16, 18"), (s3, r"PIN_CAM_UART_TX = (\d+)", "41"),
         (s3, r"PIN_CAM_UART_RX = (\d+)", "42"), (s3, r"PIN_ESTOP_SENSE = (\d+)", "21"),
@@ -334,10 +335,10 @@ class Sheet(Flowable):
 
 # ---------------------------------------------------------------- sheet 1, master schematic
 S3_LEFT = [
-    ("3V3", "not used", GREY), ("3V3", "not used", GREY), ("RST", "not used", GREY),
-    ("GPIO4", "U4 PWM, left driver", YEL), ("GPIO5", "U4 DIR, left driver", BLUE),
-    ("GPIO6", "U5 PWM, right driver", YEL), ("GPIO7", "U5 DIR, right driver", BLUE),
-    ("GPIO15", "BTS7960 EN only", GREY), ("GPIO16", "US3 Echo, via R15", PURPLE),
+    ("3V3", "U4, U5 VCC", RED), ("3V3", "not used", GREY), ("RST", "not used", GREY),
+    ("GPIO4", "U4 RPWM, left", YEL), ("GPIO5", "U4 LPWM, left", BLUE),
+    ("GPIO6", "U5 RPWM, right", YEL), ("GPIO7", "U5 LPWM, right", BLUE),
+    ("GPIO15", "U4, U5 R_EN + L_EN", BROWN), ("GPIO16", "US3 Echo, via R15", PURPLE),
     ("GPIO17", "US4 Trig", GREEN), ("GPIO18", "US4 Echo, via R17", PURPLE),
     ("GPIO8", "spare", GREY), ("GPIO3", "avoid: strapping", GREY), ("GPIO46", "avoid: strapping", GREY),
     ("GPIO9", "spare", GREY), ("GPIO10", "US1 Trig", GREEN), ("GPIO11", "US1 Echo, via R11", PURPLE),
@@ -357,7 +358,7 @@ S3_RIGHT = [
 
 
 def motor_pair(p, xout, y_ma, y_mb, xa, xb, y1, y2, m1, m2, r):
-    """Two motors in parallel: MA feeds one common side, MB the other."""
+    """Two motors in parallel: M+ feeds one common side, M− the other."""
     xm = (xa + xb) / 2
     p.wire((xout, y_ma), (xa, y_ma), color=GREEN, w=1.4)
     p.wire((xa, y1), (xa, y2), color=GREEN, w=1.4)
@@ -470,7 +471,8 @@ def sheet_master(p, W, H):
     p.text(x + 8, y + 13, "How to read this sheet", size=8, bold=True)
     legend = [(RED, "Red: every positive line. Label the voltage at each junction."),
               (BLACK, "Black: GND and battery negative."),
-              (YEL, "Yellow: PWM. Blue: DIR."),
+              (YEL, "Yellow: RPWM (forward). Blue: LPWM (reverse)."),
+              (BROWN, "Brown: motor driver EN."),
               (GREEN, "Green: sonar Trig. Violet: sonar Echo."),
               (TEAL, "Teal: camera link and voltage sense."),
               (ORANGE, "Orange: servo signal and E-stop sense.")]
@@ -483,42 +485,37 @@ def sheet_master(p, W, H):
             "mechanical link. Gold blocks are XT connectors.",
             "Header order follows ESP32-S3-DevKitC-1. If your board's silkscreen",
             "differs from this sheet, stop and check before you solder."]
-    p.lines(x + 8, y + 108, rows, size=7.2, lead=9.4)
+    p.lines(x + 8, y + 112, rows, size=7.2, lead=9.4)
     p.text(x + 8, y + 164, "Print on A3, or zoom in on screen.", size=7.2, bold=True)
 
     top = 242
     # ---- drive zone
-    p.zone(0, top, 405, 262, "DRIVE: one MD30C per side, two motors in parallel  (Sheet 4)")
-    for i, (ref, side, pwm, dirn, r1, r2, fb, jb, m1, m2) in enumerate((
-            ("U4", "left", "GPIO4", "GPIO5", "R1", "R2", "F5", "J3", "M1", "M2"),
-            ("U5", "right", "GPIO6", "GPIO7", "R3", "R4", "F6", "J4", "M3", "M4"))):
+    p.zone(0, top, 405, 262, "DRIVE: one BTS7960 (IBT-2) per side, two motors in parallel  (Sheet 4)")
+    for i, (ref, side, rpwm, lpwm, r1, r2, r3, fb, jb, m1, m2) in enumerate((
+            ("U4", "left", "GPIO4", "GPIO5", "R1", "R2", "R5", "F5", "J3", "M1", "M2"),
+            ("U5", "right", "GPIO6", "GPIO7", "R3", "R4", "R6", "F6", "J4", "M3", "M4"))):
         y = top + 22 + i * 120
-        p.part(128, y, 92, 112, ref, f"MD30C {side}", [])
-        p.tag(62, y + 26, f"U1 {pwm}", side="l", color=YEL)
-        p.wire((62, y + 26), (128, y + 26), color=YEL)
-        p.dot(94, y + 26, color=YEL)
-        p.wire((94, y + 26), (94, y + 34), color=YEL)
-        p.res(94, y + 43, "", vert=True)
-        p.text(99, y + 40, r1, size=6.6, bold=True)
-        p.text(99, y + 48, "10 k", size=6.4)
-        p.gnd(94, y + 53, stub=1)
-        p.text(132, y + 29, "PWM", size=7, mono=True)
-        p.tag(62, y + 70, f"U1 {dirn}", side="l", color=BLUE)
-        p.wire((62, y + 70), (128, y + 70), color=BLUE)
-        p.dot(94, y + 70, color=BLUE)
-        p.wire((94, y + 70), (94, y + 76), color=BLUE)
-        p.res(94, y + 85, "", vert=True)
-        p.text(99, y + 82, r2, size=6.6, bold=True)
-        p.text(99, y + 90, "10 k", size=6.4)
-        p.gnd(94, y + 95, stub=1)
-        p.text(132, y + 73, "DIR", size=7, mono=True)
-        p.wire((128, y + 100), (116, y + 100), color=BLACK)
-        p.gnd(116, y + 100, stub=2)
-        p.text(132, y + 103, "GND", size=7, mono=True)
+        p.part(128, y, 92, 112, ref, f"BTS7960 {side}", [])
+        for pin, py, dest, col in (("VCC", 20, "U1 3V3", RED), ("GND", 34, "GND", BLACK),
+                                   ("RPWM", 48, f"U1 {rpwm}", YEL), ("LPWM", 62, f"U1 {lpwm}", BLUE),
+                                   ("R_EN+L_EN", 76, "U1 GPIO15", BROWN)):
+            p.tag(62, y + py, dest, side="l", color=col, size=6.8)
+            p.wire((62, y + py), (128, y + py), color=col)
+            p.text(132, y + py + 2.5, pin, size=6.8, mono=True)
+        # Pull-downs. A drop crosses the lines below it without a dot: not connected.
+        for px, py, col in ((80, 48, YEL), (96, 62, BLUE), (112, 76, BROWN)):
+            p.dot(px, y + py, color=col)
+            p.wire((px, y + py), (px, y + 82), color=col)
+            p.res(px, y + 92, "", vert=True)
+            p.gnd(px, y + 102, stub=1)
+        p.text(74, y + 92, f"{r1}, {r2}, {r3}", size=6.4, bold=True, anchor="r")
+        p.text(74, y + 101, "10 k each", size=6.4, anchor="r")
+        p.text(132, y + 96, "R_IS  n.c.", size=6.4, mono=True, color=MUTE)
+        p.text(132, y + 106, "L_IS  n.c.", size=6.4, mono=True, color=MUTE)
         p.text(216, y + 25, "B+", size=7, mono=True, anchor="r")
         p.text(216, y + 45, "B−", size=7, mono=True, anchor="r")
-        p.text(216, y + 73, "MA", size=7, mono=True, anchor="r")
-        p.text(216, y + 107, "MB", size=7, mono=True, anchor="r")
+        p.text(216, y + 73, "M+", size=7, mono=True, anchor="r")
+        p.text(216, y + 107, "M−", size=7, mono=True, anchor="r")
         p.wire((220, y + 22), (232, y + 22))
         p.tag(232, y + 22, f"{fb}, {jb}: MOTOR BUS", color=RED, size=6.8)
         p.wire((220, y + 42), (232, y + 42), color=BLACK)
@@ -692,8 +689,8 @@ def sheet_power(p, W, H):
     p.text(120, y - 28, "14 AWG red", size=6.8, color=MUTE)
     p.text(120, y + 46, "14 AWG black", size=6.8, color=MUTE)
     # branches
-    rows = [(y - 18, "F5 15 A", "J3 XT30", "U4 MD30C left, B+", "14 AWG", "2 left motors, 11 A stall"),
-            (y + 12, "F6 15 A", "J4 XT30", "U5 MD30C right, B+", "14 AWG", "2 right motors, 11 A stall"),
+    rows = [(y - 18, "F5 15 A", "J3 XT30", "U4 BTS7960 left, B+", "14 AWG", "2 left motors, 11 A stall"),
+            (y + 12, "F6 15 A", "J4 XT30", "U5 BTS7960 right, B+", "14 AWG", "2 right motors, 11 A stall"),
             (y + 42, "F8 3 A", "J5 XT30", "U7 servo buck IN+", "18 AWG", "U7 output: +5V SERVO to SV1 red, C3 1000 µF")]
     p.wire((462, y - 18), (462, y + 72), w=2)
     for ry, fuse, conn, dest, gauge, why in rows:
@@ -870,70 +867,76 @@ def sheet_estop(p, W, H):
 
 
 # ---------------------------------------------------------------- sheet 4, drive
-@sheet(4, "Motor drivers and motors", "Design. Not built. Motor and driver models still to be confirmed (Section 2).", "A4")
+@sheet(4, "Motor drivers and motors",
+       "Design. Not built. Driver: BTS7960 (IBT-2) by team decision. Motor model still to be confirmed (Section 2).", "A4")
 def sheet_drive(p, W, H):
-    for i, (ref, side, pwm, dirn, r1, r2, fb, jb, m1, m2) in enumerate((
-            ("U4", "LEFT", "GPIO4", "GPIO5", "R1", "R2", "F5", "J3", "M1", "M2"),
-            ("U5", "RIGHT", "GPIO6", "GPIO7", "R3", "R4", "F6", "J4", "M3", "M4"))):
+    for i, (ref, side, rpwm, lpwm, r1, r2, r3, fb, jb, m1, m2) in enumerate((
+            ("U4", "LEFT", "GPIO4", "GPIO5", "R1", "R2", "R5", "F5", "J3", "M1", "M2"),
+            ("U5", "RIGHT", "GPIO6", "GPIO7", "R3", "R4", "R6", "F6", "J4", "M3", "M4"))):
         x, y = 8 + i * 396, 22
         p.text(x + 6, y - 4, f"{side} SIDE", size=9, bold=True)
-        p.part(x + 104, y + 6, 100, 130, ref, "MD30C", [], size=7.5)
-        p.tag(x + 56, y + 40, f"U1 {pwm}", side="l", color=YEL, bold=True)
-        p.wire((x + 56, y + 40), (x + 104, y + 40), color=YEL, w=1.3)
-        p.dot(x + 82, y + 40, color=YEL)
-        p.wire((x + 82, y + 40), (x + 82, y + 48), color=YEL)
-        p.res(x + 82, y + 58, "", vert=True)
-        p.text(x + 76, y + 57, r1, size=7, bold=True, anchor="r")
-        p.text(x + 76, y + 65, "10 kΩ", size=6.6, anchor="r")
-        p.gnd(x + 82, y + 68, stub=1)
-        p.text(x + 108, y + 43, "PWM", size=8, mono=True, bold=True)
-        p.tag(x + 56, y + 90, f"U1 {dirn}", side="l", color=BLUE, bold=True)
-        p.wire((x + 56, y + 90), (x + 104, y + 90), color=BLUE, w=1.3)
-        p.dot(x + 82, y + 90, color=BLUE)
-        p.wire((x + 82, y + 90), (x + 82, y + 96), color=BLUE)
-        p.res(x + 82, y + 106, "", vert=True)
-        p.text(x + 76, y + 105, r2, size=7, bold=True, anchor="r")
-        p.text(x + 76, y + 113, "10 kΩ", size=6.6, anchor="r")
-        p.gnd(x + 82, y + 116, stub=1)
-        p.text(x + 108, y + 93, "DIR", size=8, mono=True, bold=True)
-        p.wire((x + 104, y + 124), (x + 96, y + 124), color=BLACK)
-        p.gnd(x + 96, y + 124, stub=1)
-        p.text(x + 108, y + 127, "GND", size=8, mono=True, bold=True)
+        p.part(x + 104, y + 6, 100, 176, ref, "BTS7960 (IBT-2)", [], size=7.5)
+        for pin, py, dest, col in (("VCC", 32, "U1 3V3", RED), ("GND", 50, "GND", BLACK)):
+            p.tag(x + 56, y + py, dest, side="l", color=col, bold=True)
+            p.wire((x + 56, y + py), (x + 104, y + py), color=col, w=1.3)
+            p.text(x + 108, y + py + 3, pin, size=8, mono=True, bold=True)
+        for pin, py, dest, rr, col in (("RPWM", 72, f"U1 {rpwm}", r1, YEL), ("LPWM", 112, f"U1 {lpwm}", r2, BLUE),
+                                       ("R_EN", 152, "U1 GPIO15", r3, BROWN)):
+            p.tag(x + 56, y + py, dest, side="l", color=col, bold=True)
+            p.wire((x + 56, y + py), (x + 104, y + py), color=col, w=1.3)
+            p.dot(x + 82, y + py, color=col)
+            p.wire((x + 82, y + py), (x + 82, y + py + 8), color=col)
+            p.res(x + 82, y + py + 18, "", vert=True)
+            p.text(x + 76, y + py + 17, rr, size=7, bold=True, anchor="r")
+            p.text(x + 76, y + py + 25, "10 kΩ", size=6.6, anchor="r")
+            p.gnd(x + 82, y + py + 28, stub=1)
+            p.text(x + 108, y + py + 3, pin, size=8, mono=True, bold=True)
+        # L_EN is joined to R_EN at the module.
+        p.wire((x + 104, y + 164), (x + 96, y + 164), (x + 96, y + 152), color=BROWN, w=1.3)
+        p.dot(x + 96, y + 152, color=BROWN)
+        p.text(x + 108, y + 167, "L_EN", size=8, mono=True, bold=True)
+        p.text(x + 108, y + 178, "R_IS, L_IS  n.c.", size=7, mono=True, color=MUTE)
         p.text(x + 200, y + 34, "B+", size=8, mono=True, bold=True, anchor="r")
         p.text(x + 200, y + 56, "B−", size=8, mono=True, bold=True, anchor="r")
-        p.text(x + 200, y + 86, "MA", size=8, mono=True, bold=True, anchor="r")
-        p.text(x + 200, y + 131, "MB", size=8, mono=True, bold=True, anchor="r")
+        p.text(x + 200, y + 106, "M+", size=8, mono=True, bold=True, anchor="r")
+        p.text(x + 200, y + 171, "M−", size=8, mono=True, bold=True, anchor="r")
         p.wire((x + 204, y + 31), (x + 222, y + 31), w=1.6)
         p.tag(x + 222, y + 31, f"{jb} +, {fb}: 12.6 V", color=RED, size=7)
         p.wire((x + 204, y + 53), (x + 222, y + 53), color=BLACK, w=1.6)
         p.tag(x + 222, y + 53, f"{jb} −: STAR GND", color=BLACK, size=7)
-        p.text(x + 214, y + 79, "18 AWG", size=6.4, color=MUTE)
-        motor_pair(p, x + 204, y + 83, y + 128, x + 252, x + 330, y + 78, y + 110, m1, m2, 11)
-    y = 196
+        p.text(x + 214, y + 99, "18 AWG", size=6.4, color=MUTE)
+        motor_pair(p, x + 204, y + 103, y + 168, x + 252, x + 330, y + 98, y + 140, m1, m2, 11)
+    y = 222
     p.text(12, y, "Setup and pairing", size=9, bold=True)
     p.lines(12, y + 13, [
-        "• Set the MD30C jumper or switch for external PWM (PWM + DIR, sign-magnitude). Check its manual.",
-        "• The firmware drives 20 kHz PWM at 10 bits. MD30C logic high is 3 to 5.5 V, so 3.3 V from the S3 is fine.",
-        "• The 10 kΩ pull-downs keep the driver inputs LOW while the S3 boots or resets. Solder them at the logic board.",
+        "• VCC comes from the S3's 3V3 pin, not 5 V. The inputs go through a 74HC244 buffer powered from VCC; at 5 V it needs about 3.5 V for a HIGH.",
+        "• Before wiring, meter VCC to B+ on each module: there must be no connection. Leave R_IS and L_IS unconnected; the firmware does not read them.",
+        "• Forward = PWM on RPWM with LPWM LOW. Reverse = PWM on LPWM with RPWM LOW. 20 kHz at 10 bits; the BTS7960 is specified up to 25 kHz.",
+        "• EN is HIGH only while a side is driven. EN LOW turns all four half-bridges off, so the motors coast. E-stop, disarm and faults set EN LOW at once.",
+        "• The 10 kΩ pull-downs keep every input LOW while the S3 boots or resets. Solder them at the logic board: R5 on U4's EN wire, R6 on U5's.",
         "• Check each motor alone on a bench supply first, then wire both motors on a side to spin the same way for the same polarity.",
-        "• If a whole side runs backwards, swap that side's MA and MB, or set MOTOR_LEFT_INVERT or MOTOR_RIGHT_INVERT in config_hardware.h.",
-        "• MA and MB swap polarity, so they are neither fixed + nor GND. Use a pair that is not red or black, such as green and blue, and label them.",
+        "• If a whole side runs backwards, swap that side's M+ and M−, or set MOTOR_LEFT_INVERT or MOTOR_RIGHT_INVERT in config_hardware.h.",
+        "• M+ and M− swap polarity, so they are neither fixed + nor GND. Use a pair that is not red or black, such as green and blue, and label them.",
         "• Route motor wires away from sonar, servo and camera-link wires (rule 3.1.5). Run motor returns to the star point, not through the logic board."],
         size=7.6, lead=11.4)
-    tb = [["BTS7960 / IBT-2 pin (alternative driver)", "Left module", "Right module"],
-          ["RPWM", "U1 GPIO4", "U1 GPIO6"], ["LPWM", "U1 GPIO5", "U1 GPIO7"],
-          ["R_EN + L_EN, both modules together", "U1 GPIO15, each 10 kΩ to GND", "U1 GPIO15, each 10 kΩ to GND"],
-          ["VCC (logic buffer)", "3.3 V, see note", "3.3 V, see note"], ["B+, B−", "F5, J3", "F6, J4"], ["M+, M−", "M1, M2 in parallel", "M3, M4 in parallel"]]
-    end = p.grid(12, 296, [190, 120, 94], tb)
-    p.note(428, 296, W - 440, [
-        "To use BTS7960 modules, set MOTOR_DRIVER_TYPE to DRIVER_BTS7960 in",
-        "src/s3/config_hardware.h and wire as in the table.",
-        "IBT-2 inputs go through a 74HC244 buffer. At VCC = 5 V it needs ≥3.5 V for a",
-        "HIGH, which 3.3 V GPIO does not guarantee. Power the module's VCC from 3.3 V",
-        "(check on your module that VCC feeds only the buffer), or add a 74HCT245.",
+    tb = [["IBT-2 pin", "Left module U4", "Right module U5"],
+          ["RPWM (forward)", "U1 GPIO4, R1 to GND", "U1 GPIO6, R3 to GND"],
+          ["LPWM (reverse)", "U1 GPIO5, R2 to GND", "U1 GPIO7, R4 to GND"],
+          ["R_EN + L_EN, joined", "U1 GPIO15, R5 to GND", "U1 GPIO15, R6 to GND"],
+          ["R_IS, L_IS", "not connected", "not connected"],
+          ["VCC (logic buffer)", "U1 3V3", "U1 3V3"], ["GND (logic)", "GND", "GND"],
+          ["B+, B−", "F5, J3", "F6, J4"], ["M+, M−", "M1, M2 in parallel", "M3, M4 in parallel"]]
+    p.grid(12, 346, [120, 142, 142], tb)
+    p.note(428, 346, W - 440, [
+        "Team decision, 11 Nov 2026: two BTS7960 (IBT-2) modules.",
+        "The firmware drives only this module (src/s3/motors.cpp).",
         "",
-        "Do not use the 10 A dual H-bridge from the team's notes with the baseline",
-        "motors: one side can pull 11 A at stall."], title="Driver choice", size=7.3, lead=9.6)
+        "Heatsink: at least one seller says it is not insulated from",
+        "the board. Treat it as live: it must touch no metal and no",
+        "other module, or fit an insulating thermal pad.",
+        "",
+        "Do not use the 10 A dual H-bridge from the team's notes with",
+        "the baseline motors: one side can pull 11 A at stall."], title="Driver", size=7.3, lead=9.6)
 
 
 # ---------------------------------------------------------------- sheet 5, sonars
@@ -1271,7 +1274,7 @@ def wire_rows():
         ["W25", "Star point", "K1 coil −, D1 anode", "GND", "black", "22 AWG", ""],
         ["W26", "Star point", "FAN1 −", "GND", "black", "22 AWG", ""],
         ["W27", "Star point", "Logic board GND", "GND", "black", "22 AWG", "No motor current through the logic board"],
-        ["W28", "Logic GND", "U1, U2, US1–US4 GND", "GND", "black", "24 AWG", "Also R1–R4, R12–R18, R22, R24, C21, C22"],
+        ["W28", "Logic GND", "U1, U2, US1–US4 GND", "GND", "black", "24 AWG", "Also R1–R6, R12–R18, R22, R24, C21, C22"],
         ["W29", "Logic GND", "U4 GND, U5 GND", "GND", "black", "24 AWG", "Driver logic ground"],
         ["W30", "U7 OUT−", "SV1 brown, C3, U2 GND", "GND", "black", "18 AWG", "The servo signal needs this common ground"],
         ["W31", "F1 out", "F4, SW2", "BAT+ 12.6 V", "red", "22 AWG", "ARM path"],
@@ -1281,14 +1284,16 @@ def wire_rows():
         ["W35", "SW1 pole A, side 2", "K1 coil +, D1 cathode", "0 / 12.6 V", "red", "22 AWG", ""],
         ["W36", "U1 GPIO21", "SW1 pole B, side 1", "E-stop sense, 3.3 V", "orange", "24 AWG", "Open = treated as E-stop"],
         ["W37", "SW1 pole B, side 2", "Logic GND", "GND", "black", "24 AWG", ""],
-        ["W40", "U1 GPIO4", "U4 PWM", "PWM 3.3 V, 20 kHz", "yellow", "24 AWG", "R1 10 kΩ to GND"],
-        ["W41", "U1 GPIO5", "U4 DIR", "DIR 3.3 V", "blue", "24 AWG", "R2 10 kΩ to GND"],
-        ["W42", "U1 GPIO6", "U5 PWM", "PWM 3.3 V, 20 kHz", "yellow", "24 AWG", "R3 10 kΩ to GND"],
-        ["W43", "U1 GPIO7", "U5 DIR", "DIR 3.3 V", "blue", "24 AWG", "R4 10 kΩ to GND"],
-        ["W44", "U4 MA", "M1, M2 first lead", "Motor, swaps polarity", "green", "18 AWG", "Not red or black"],
-        ["W45", "U4 MB", "M1, M2 second lead", "Motor, swaps polarity", "blue", "18 AWG", "Not red or black"],
-        ["W46", "U5 MA", "M3, M4 first lead", "Motor, swaps polarity", "green", "18 AWG", "Not red or black"],
-        ["W47", "U5 MB", "M3, M4 second lead", "Motor, swaps polarity", "blue", "18 AWG", "Not red or black"],
+        ["W38", "U1 GPIO15", "U4 and U5 R_EN + L_EN", "EN 3.3 V", "brown", "24 AWG", "R5 (U4 wire), R6 (U5 wire) 10 kΩ to GND"],
+        ["W39", "U1 3V3", "U4 VCC, U5 VCC", "+3V3", "red", "24 AWG", "Driver logic buffer only"],
+        ["W40", "U1 GPIO4", "U4 RPWM", "PWM 3.3 V, 20 kHz, forward", "yellow", "24 AWG", "R1 10 kΩ to GND"],
+        ["W41", "U1 GPIO5", "U4 LPWM", "PWM 3.3 V, 20 kHz, reverse", "blue", "24 AWG", "R2 10 kΩ to GND"],
+        ["W42", "U1 GPIO6", "U5 RPWM", "PWM 3.3 V, 20 kHz, forward", "yellow", "24 AWG", "R3 10 kΩ to GND"],
+        ["W43", "U1 GPIO7", "U5 LPWM", "PWM 3.3 V, 20 kHz, reverse", "blue", "24 AWG", "R4 10 kΩ to GND"],
+        ["W44", "U4 M+", "M1, M2 first lead", "Motor, swaps polarity", "green", "18 AWG", "Not red or black"],
+        ["W45", "U4 M−", "M1, M2 second lead", "Motor, swaps polarity", "blue", "18 AWG", "Not red or black"],
+        ["W46", "U5 M+", "M3, M4 first lead", "Motor, swaps polarity", "green", "18 AWG", "Not red or black"],
+        ["W47", "U5 M−", "M3, M4 second lead", "Motor, swaps polarity", "blue", "18 AWG", "Not red or black"],
         ["W50", "U1 GPIO10", "US1 Trig", "Trig 3.3 V", "green", "24 AWG", ""],
         ["W51", "US1 Echo", "R11, then U1 GPIO11", "Echo 5 V, then 3.2 V", "violet", "24 AWG", "R12 from GPIO11 side to GND"],
         ["W52", "U1 GPIO12", "US2 Trig", "Trig 3.3 V", "green", "24 AWG", ""],
@@ -1309,8 +1314,7 @@ def bom_rows():
     return [
         ["Ref", "Part", "Qty", "Label", "Notes"],
         ["M1–M4", "12 V gearmotor, Pololu #4744 (37D × 54L mm, 70:1, no encoder)", "4", f"{R} baseline. Four motors {C}. Team notes list 25GA 300 rpm: {U} rating", "150 RPM, 0.2 A no-load, 5.5 A stall at 12 V. #4754 is the encoder version, needed if traverse must finish as COMPLETE."],
-        ["U4, U5", "Cytron MD30C, single channel, PWM + DIR", "2", f"{R}. Two drivers {C}, model {U}", "5–30 V, 30 A continuous, 80 A for ≤1 s, PWM ≤20 kHz."],
-        ["(alt)", "BTS7960 / IBT-2", "2", "alternative from team notes", "Firmware supports it. See Sheet 4."],
+        ["U4, U5", "BTS7960 / IBT-2 motor driver module: two BTS7960B half-bridges, 74HC244 input buffer", "2", "team decision, 11 Nov 2026", "Seller data: 5.5–27 V, 3.3–5 V logic, PWM ≤25 kHz, current limit 43 A typical. VCC from U1 3V3. Heatsink may be live."],
         ["BT1", "3S Li-ion pack with BMS, XT60 lead", "1", R, "11.1 V nominal, 12.6 V full. BMS ≥25 A continuous. For example 3S2P high-drain 18650, about 5 Ah."],
         ["—", "3S Li-ion CC/CV charger, 12.6 V, 1–2 A", "1", R, "Never a generic 12 V adapter."],
         ["—", "Fire-resistant battery bag", "1", R, "Rule 3.3.2: carry and charge in it."],
@@ -1329,7 +1333,7 @@ def bom_rows():
         ["—", "ESP32-CAM-MB flashing board (FT232R)", "1", f"{C} owned", "No auto-reset: IO0 + RST to flash. Not on the rover."],
         ["US1–US4", "HC-SR04 ultrasonic sensor", "4", f"1 {C} owned, 3 to buy", "Team notes say 2. Any subset works; rear enables reverse."],
         ["SV1", "MG996R servo, 180° positional + rigid pan bracket", "1", f"{C} owned", "Team saw it move and hold."],
-        ["R1–R4", "10 kΩ pull-down at driver inputs", "4", R, "Two more for R_EN and L_EN with BTS7960."],
+        ["R1–R6", "10 kΩ pull-down at driver inputs", "6", R, "RPWM and LPWM of each module (R1–R4), each module's EN wire (R5, R6)."],
         ["R11, 13, 15, 17", "1 kΩ, Echo series", "4", R, ""],
         ["R12, 14, 16, 18", "1.8 kΩ, Echo to GND", "4", R, "2 kΩ is also fine (3.33 V)."],
         ["R21, R23", "100 kΩ, voltage sense top", "2", f"{R}, optional", ""],
@@ -1364,7 +1368,7 @@ def test_rows():
         ["T11", "Sense wire broken", "Unplug the GPIO21 wire.", "S3 latches ESTOP", blank, "☐"],
         ["T12", "Set U7", "ARM on, servo not plugged in. Adjust the U7 output.", "4.9–5.1 V", blank, "☐"],
         ["T13", "Servo from U7", "Plug in SV1 with C3. Move the pan slider. Switch E-stop OFF while it moves.", "Moves 45–135°; stops when the bus drops", blank, "☐"],
-        ["T14", "Driver inputs low at reset", "Meter on GPIO4–7 at the driver side while pressing RST on the S3. Motors off.", "About 0 V", blank, "☐"],
+        ["T14", "Driver logic", "Motors off. Meter VCC on each module, then RPWM, LPWM and EN while holding RST on the S3.", "VCC 3.3 V. Inputs about 0 V", blank, "☐"],
         ["T15", "Sonar accuracy on 5 V", "Ruler, flat object fixed in place, sonar fixed. 10, 20, 50 cm. Hands away. Close spare dashboard tabs.", "Note the error. Window at 100 mm is ±20 mm", blank, "☐"],
         ["T16", "Voltage sense", "Compare the dashboard to a meter, then set BATTERY_CAL_GAIN.", "Matches the meter after calibration", blank, "☐"],
         ["T17", "Each motor alone", "Wheels raised. One motor at a time on low duty.", "Same direction per side", blank, "☐"],
@@ -1390,7 +1394,7 @@ def build_story():
     s.append(Spacer(1, 8))
     s.append(para("Before you buy or solder", H2))
     s += bullets(["<b>Read the motor label.</b> Fuses, driver and wire sizes assume Pololu #4744 (5.5 A stall). The team's notes list 25GA 300 rpm with an unknown rating.",
-                  "<b>Confirm the driver.</b> The 10 A dual H-bridge in the notes is too small for the baseline motors. Use MD30C or BTS7960.",
+                  "<b>Drivers: two BTS7960 (IBT-2) modules</b>, by team decision. Power their VCC from the S3's 3.3 V, not 5 V (Sheet 4).",
                   "<b>Never connect the 5 V sonar Echo directly to an S3 pin.</b> Use the divider on Sheet 5.",
                   "<b>Never power the servo</b> from a board's 5 V pin or from the logic buck.",
                   "<b>E-stop: the team chose a 2-pole switch</b> instead of the red mushroom-head button rule 1.2.1 asks for. Get the organisers' approval in writing before you build it. An inspector may refuse it, and a rover that fails the E-stop test may not run (rule 1.2.3).",
@@ -1427,7 +1431,7 @@ def build_story():
     s.append(Heading("2. Decisions needed before buying", H1))
     s.append(table([["Item", "Assumed here", "Why it matters", "How to settle it", "Decided"],
                     ["Motors", "Pololu #4744, 5.5 A stall", "Sets every fuse, driver and wire size", "Read the label or datasheet of the motors you will really fit: voltage, no-load and stall current", ""],
-                    ["Motor drivers", "2 × MD30C", "10 A dual H-bridge is below the 11 A per-side stall", "Name the part you own. For BTS7960, change MOTOR_DRIVER_TYPE", ""],
+                    ["Motor drivers", "2 × BTS7960 (IBT-2), VCC from 3.3 V", "The 10 A dual H-bridge is below the 11 A per-side stall", "Done. Check VCC and inputs with test T14", "yes, 11 Nov 2026"],
                     ["Battery", "3S Li-ion, BMS ≥25 A", "Stall worst case is 22 A", "Choose and buy with its charger and bag", ""],
                     ["Contactor K1", "12 V coil, ≥40 A DC", "Coil current sets F4, F7 and the E-stop contact rating", "Read its datasheet. Prefer one with an auxiliary NO contact (Sheet 3)", ""],
                     ["Fan", "12 V 4-inch, on F3", "Its current adds to the 3 A branch", "Read the label", ""],
@@ -1478,16 +1482,16 @@ def build_story():
     s.append(table([["GPIO", "Name in firmware", "Direction", "Connects to", "Notes", "Tested"],
                     ["1", "PIN_BATT_ADC", "in, ADC1", "R21, R22, C21", "optional", "no"],
                     ["2", "PIN_MOTOR_BUS_ADC", "in, ADC1", "R23, R24, C22", "optional", "no"],
-                    ["4", "PIN_LEFT_A", "out, PWM", "U4 PWM (BTS7960 RPWM)", "R1 to GND", "no"],
-                    ["5", "PIN_LEFT_B", "out", "U4 DIR (BTS7960 LPWM)", "R2 to GND", "no"],
-                    ["6", "PIN_RIGHT_A", "out, PWM", "U5 PWM (BTS7960 RPWM)", "R3 to GND", "no"],
-                    ["7", "PIN_RIGHT_B", "out", "U5 DIR (BTS7960 LPWM)", "R4 to GND", "no"],
+                    ["4", "PIN_LEFT_RPWM", "out, PWM", "U4 RPWM, left forward", "R1 to GND", "no"],
+                    ["5", "PIN_LEFT_LPWM", "out, PWM", "U4 LPWM, left reverse", "R2 to GND", "no"],
+                    ["6", "PIN_RIGHT_RPWM", "out, PWM", "U5 RPWM, right forward", "R3 to GND", "no"],
+                    ["7", "PIN_RIGHT_LPWM", "out, PWM", "U5 LPWM, right reverse", "R4 to GND", "no"],
                     ["10", "PIN_SONAR_TRIG[0]", "out", "US1 Trig", "front centre", t_yes],
                     ["11", "PIN_SONAR_ECHO[0]", "in", "US1 Echo via R11, R12", "internal pull-down on", t_yes + ", 3.3 V"],
                     ["12", "PIN_SONAR_TRIG[1]", "out", "US2 Trig", "front left", "no"],
                     ["13", "PIN_SONAR_ECHO[1]", "in", "US2 Echo via R13, R14", "", "no"],
                     ["14", "PIN_SONAR_TRIG[2]", "out", "US3 Trig", "front right", "no"],
-                    ["15", "PIN_DRIVER_EN", "out", "BTS7960 R_EN, L_EN", "BTS7960 only", "no"],
+                    ["15", "PIN_DRIVER_EN", "out", "U4, U5 R_EN + L_EN", "R5, R6 to GND", "no"],
                     ["16", "PIN_SONAR_ECHO[2]", "in", "US3 Echo via R15, R16", "", "no"],
                     ["17", "PIN_SONAR_TRIG[3]", "out", "US4 Trig", "rear", "no"],
                     ["18", "PIN_SONAR_ECHO[3]", "in", "US4 Echo via R17, R18", "", "no"],
@@ -1517,7 +1521,7 @@ def build_story():
     s.append(Heading("7. Bill of materials", H1))
     s.append(table(bom_rows(), [78, 240, 26, 136, lw - 480]))
     s.append(para("Shopping list (beyond what the team owns)", H2))
-    s.append(para("3 × HC-SR04 · rigid pan bracket · 2 × MD30C (or confirm owned drivers) · 4 × Pololu #4744 (or #4754 with encoders, or confirm the 25GA rating) · 2-pole ON-OFF E-stop switch, DC-rated above the K1 coil current · 12 V-coil contactor ≥40 A DC, ideally with an auxiliary NO contact · green NO push button · fuse holders and 25, 15, 15, 3, 3, 1, 1 A blade fuses · XT60 × 2 pairs, XT30 × 4 pairs · 2 × 5 V buck converters ≥3 A · 3S Li-ion pack with ≥25 A BMS, 12.6 V charger, fire-resistant bag · resistors: 1 k × 4, 1.8 k × 4, 10 k × 6, 100 k × 2, 22 k × 2 · capacitors: 470 µF × 1, 1000 µF × 1, 100 µF × 4, 100 nF × 7 · 1N4007 × 1 · wire · veroboard, headers, crimp connectors. Optional audio: INMP441, MAX98357A, 4 Ω 3 W speaker.", SMALL))
+    s.append(para("3 × HC-SR04 · rigid pan bracket · 2 × BTS7960 IBT-2 modules (if not owned yet) · 4 × Pololu #4744 (or #4754 with encoders, or confirm the 25GA rating) · 2-pole ON-OFF E-stop switch, DC-rated above the K1 coil current · 12 V-coil contactor ≥40 A DC, ideally with an auxiliary NO contact · green NO push button · fuse holders and 25, 15, 15, 3, 3, 1, 1 A blade fuses · XT60 × 2 pairs, XT30 × 4 pairs · 2 × 5 V buck converters ≥3 A · 3S Li-ion pack with ≥25 A BMS, 12.6 V charger, fire-resistant bag · resistors: 1 k × 4, 1.8 k × 4, 10 k × 6, 100 k × 2, 22 k × 2 · capacitors: 470 µF × 1, 1000 µF × 1, 100 µF × 4, 100 nF × 7 · 1N4007 × 1 · wire · veroboard, headers, crimp connectors. Optional audio: INMP441, MAX98357A, 4 Ω 3 W speaker.", SMALL))
     s.append(callout(para("<b>Buy first:</b> the resistors and capacitors for the sonars. They are cheap, and the sonar work is waiting on them.", SMALL), lw))
     # ---- section 8
     s.append(NextPageTemplate("PortA4"))
@@ -1584,7 +1588,8 @@ def build_story():
                     ["Dashboard access is not protected yet", "Software team", "Fix before motors are connected"]], [190, 190, a4w - 380]))
     s.append(para("Revision history", H2))
     s.append(table([["Rev", "Date", "Change"], ["A", "2 Nov 2026", "First issue. Adds J2, sonar capacitors C11–C18 and the K1 re-latch check to the design in docs/03_electrical.md."],
-                    ["B", "6 Nov 2026", "E-stop SW1 changed from the red mushroom button to a 2-pole ON-OFF switch, by team decision. Rule 1.2.1 marked NOT MET."]], [34, 70, a4w - 104]))
+                    ["B", "6 Nov 2026", "E-stop SW1 changed from the red mushroom button to a 2-pole ON-OFF switch, by team decision. Rule 1.2.1 marked NOT MET."],
+                    ["C", "11 Nov 2026", "Motor drivers U4, U5 changed from MD30C to BTS7960 (IBT-2) by team decision: RPWM, LPWM and a shared EN; VCC from U1 3V3; EN pull-downs R5, R6. Firmware is BTS7960-only."]], [34, 70, a4w - 104]))
     return s
 
 

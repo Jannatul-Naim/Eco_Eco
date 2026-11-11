@@ -14,10 +14,10 @@
  └──────────────┘             │  * ICMP ping       │ obs. + pan │ ESP32-CAM   │ │ AUDIO     │
                               │                    │ mode only  │ stream, QR, │ │ (optional)│
                               └──┬────────────┬────┘            │ motion, pan │ │ mic + spk │
-                                 │PWM/DIR     │GPIO             └──────┬──────┘ └───────────┘
-                          ┌──────┴──┐         └─ 4× HC-SR04            │IO2
-                          │2× MD30C │            (1k/1k8 dividers) MG996R camera pan
-                          └────┬────┘
+                                 │PWM + EN    │GPIO             └──────┬──────┘ └───────────┘
+                          ┌──────┴───┐        └─ 4× HC-SR04            │IO2
+                          │2× BTS7960│           (1k/1k8 dividers) MG996R camera pan
+                          └────┬─────┘
                      4 motors (2 per side, in parallel)
            motor and servo power pass through the DC contactor that the E-stop opens
 ```

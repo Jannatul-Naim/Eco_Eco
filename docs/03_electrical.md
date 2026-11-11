@@ -30,14 +30,14 @@ Rulebook constraints that shape this design (Mechanical & Electrical Rulebook V1
 | # | Part | Qty | Label | Notes |
 |---|---|---|---|---|
 | D1 | 12 V brushed gearmotor, **Pololu #4744** (37D × 54L mm, 70:1, helical pinion, **no encoder**) | 4 | RECOMMENDED (baseline); "four drive motors" CONFIRMED | Pololu data at 12 V: 150 RPM, 0.2 A no-load, **5.5 A stall** (extrapolated), keep continuous load ≤ 10 kg·cm. The encoder version is **#4754**: buy that if you want the traverse task to be able to finish as COMPLETE. |
-| D2 | Cytron **MD30C** single-channel driver (PWM + DIR) | 2 | RECOMMENDED; "two motor drivers" CONFIRMED, model UNKNOWN | 5–30 V, 30 A continuous, 80 A for ≤ 1 s, PWM ≤ 20 kHz, logic high 3–5.5 V (3.3 V is fine). One driver per side, with that side's two motors in parallel. |
-| D2-alt | BTS7960 / IBT-2 dual half-bridge module | 2 | alternative (listed in the team's component notes) | Firmware supports it: set `MOTOR_DRIVER_TYPE` to `DRIVER_BTS7960` in `src/s3/config_hardware.h`. See §3.5 for the logic-voltage caveat. |
+| D2 | **BTS7960 / IBT-2** motor driver module: two Infineon BTS7960B half-bridges (a full H-bridge) and a 74HC244 input buffer | 2 | team decision (11 Nov 2026); "BTS7960 (2 pcs)" in the team's notes | Seller data: 5.5–27 V motor supply, 3.3–5 V logic, PWM up to 25 kHz, current limit 43 A typical. One module per side, with that side's two motors in parallel. Logic VCC from the S3's 3.3 V (§3.5). |
 
 **Driver sizing with real data.** The per-side load is 2 × 5.5 A = **11 A at stall**, and both
-sides together 22 A. MD30C: 30 A continuous is 2.7× the per-side stall, so a stalled side does
-not exceed its rating; the branch fuses (§3.3) protect the wiring. A "10 A dual H-bridge" (the
-other option in the team's notes) is **below** the 11 A per-side stall of these motors. Do not
-use it with this motor choice.
+sides together 22 A. BTS7960: its current limit (43 A typical) is about 4× the per-side stall. That
+limit is a protection threshold, not a continuous rating: run the module with its heatsink, and
+let the branch fuses (§3.3) protect the wiring. A "10 A dual H-bridge" (the other option in the
+team's notes) is **below** the 11 A per-side stall of these motors. Do not use it with this motor
+choice.
 
 **3S battery vs 12 V motors.** A full 3S pack is 12.6 V, 5 % above the motor rating. The
 firmware caps PWM duty at 12.0 V / V<sub>battery</sub> once the battery divider is fitted and
@@ -73,7 +73,7 @@ divider so the cap follows the real voltage.
 | C5 | Echo divider per sonar: 1 kΩ series + 1.8 kΩ to GND (5 V → 3.2 V) | 4 sets | RECOMMENDED | **never** connect 5 V Echo straight to an ESP32 pin |
 | C6 | ~~PCA9685 PWM board~~ | 0 | **not needed** | since 1 Nov 2026 the ESP32-CAM drives the servo signal itself (IO2) |
 | C7 | MG996R metal-gear servo, **180° positional type** + sturdy camera pan bracket | 1 | CONFIRMED (owned, 1 Nov 2026); 180° type not checked yet | not the 360° continuous-rotation version (stage 6 checks this); 55 g, so the bracket must be rigid. 180° is nominal; the usable range comes from calibration and the bracket |
-| C8 | 10 kΩ pull-down per motor-driver input | 4 (6 with BTS7960) | RECOMMENDED | keeps driver inputs LOW while the S3 boots or resets |
+| C8 | 10 kΩ pull-down per motor-driver input: RPWM and LPWM of each module, plus EN at each module | 6 | RECOMMENDED | keeps driver inputs LOW while the S3 boots or resets |
 | C9 | Battery divider 100 kΩ / 22 kΩ (+ 100 nF at the ADC pin) | 1 | RECOMMENDED | 12.6 V → 2.27 V on GPIO1 |
 | C10 | Motor-bus divider 100 kΩ / 22 kΩ (+ 100 nF) | 1 | optional | lets the firmware see that the contactor opened |
 | C11 | 470 µF 16 V electrolytic + 100 nF at the ESP32-CAM 5 V pin; 470–1000 µF across the servo 5 V / GND at the servo connector | 2 | RECOMMENDED | ESP32-CAM brownouts and servo current spikes are common |
@@ -96,8 +96,8 @@ the strength of this document; decide per line:
 
 | Team note | This repository | What to do |
 |---|---|---|
-| "10 A dual H-bridge (1 pc)" | MD30C × 2 | Too small for 2 × Pololu #4744 per side (11 A stall). Use MD30C or BTS7960. |
-| "BTS7960 (2 pcs)" | supported | Set `MOTOR_DRIVER_TYPE DRIVER_BTS7960` and wire per §3.5. |
+| "10 A dual H-bridge (1 pc)" | not used | Too small for 2 × Pololu #4744 per side (11 A stall). |
+| "BTS7960 (2 pcs)" | D2, the rover's drivers (11 Nov 2026) | Wire per §3.5. The firmware drives only this module. |
 | "25GA motor 300 rpm × 4" | Pololu #4744 | **UNKNOWN rating.** Before choosing the fuses and driver, read the motor label or datasheet for voltage, no-load current and stall current. Change D1 and this section together. |
 | "HC-SR04 (2 pcs)" | 4 | Any subset works; unfitted ones report `not_fitted`. With two, fit front-center and rear. |
 | "INMP441, MAX98357A, 4 Ω 3 W speaker" on the main ESP (flow diagram) | separate optional ESP32 board | Kept separate on purpose (no audio code on the motor controller). Moving audio onto the S3 would need a port; it is not done. |
@@ -108,8 +108,8 @@ the strength of this document; decide per line:
 
 ```
                  F1 25A                 K1 contactor (≥40 A DC)
- BAT+ ──XT60──●──[====]──●───────────────o/ o───────●── MOTOR BUS ──┬─F5 15A─XT30─► MD30C LEFT  B+ ─► 2 left motors
- (3S, BMS)    │          │                          │               ├─F6 15A─XT30─► MD30C RIGHT B+ ─► 2 right motors
+ BAT+ ──XT60──●──[====]──●───────────────o/ o───────●── MOTOR BUS ──┬─F5 15A─XT30─► IBT-2 LEFT  B+ ─► 2 left motors
+ (3S, BMS)    │          │                          │               ├─F6 15A─XT30─► IBT-2 RIGHT B+ ─► 2 right motors
               │          │                          │               └─F8 3A ─XT30─► BUCK "servo 5V" ─► MG996R red (signal from ESP32-CAM IO2)
               │          │                          │
               │          │   (E-stop / ARM latch, §3.4)
@@ -171,28 +171,40 @@ fit a bleed resistor across the bus (1 kΩ 1 W) and test again. Not tested yet; 
 
 ## 3.5 Motor drivers and motor pairing
 
-**MD30C (baseline), one per side:**
+**BTS7960 / IBT-2 module, one per side** (team decision, 11 Nov 2026). Each module holds two
+BTS7960B half-bridges, so one module drives one side's two motors in both directions.
 
-| MD30C pin | Left driver | Right driver |
+| IBT-2 pin | Left module | Right module |
 |---|---|---|
-| PWM | S3 GPIO4 + 10 kΩ to GND | S3 GPIO6 + 10 kΩ to GND |
-| DIR | S3 GPIO5 + 10 kΩ to GND | S3 GPIO7 + 10 kΩ to GND |
-| GND (logic) | common GND | common GND |
-| B+ / B− | motor bus via F5 / GND | motor bus via F6 / GND |
-| MA / MB | both left motors **in parallel** | both right motors **in parallel** |
+| RPWM (forward) | S3 GPIO4 + 10 kΩ to GND | S3 GPIO6 + 10 kΩ to GND |
+| LPWM (reverse) | S3 GPIO5 + 10 kΩ to GND | S3 GPIO7 + 10 kΩ to GND |
+| R_EN + L_EN, joined at the module | S3 GPIO15 + 10 kΩ to GND | S3 GPIO15 + 10 kΩ to GND |
+| R_IS, L_IS | not connected | not connected |
+| VCC (logic) | S3 **3V3** pin | S3 **3V3** pin |
+| GND (logic) | logic GND | logic GND |
+| B+ / B− | motor bus via F5 / star GND | motor bus via F6 / star GND |
+| M+ / M− | both left motors **in parallel** | both right motors **in parallel** |
 
-- Set the MD30C jumper/switch for **external PWM** (sign-magnitude PWM + DIR), per its manual.
-- The firmware uses 20 kHz PWM at 10 bits.
+- **VCC from 3.3 V, not 5 V.** The control pins go through a 74HC244 buffer powered from VCC. At
+  VCC = 5 V that buffer needs about 3.5 V for a HIGH, which 3.3 V GPIO does not guarantee. With
+  VCC on the S3's 3V3 pin the buffer and the GPIOs use the same level. Sellers list 3.3–5 V logic
+  for this module. Check with a meter that VCC on your module has no connection to B+.
+  RECOMMENDED, not tested on this rover.
+- **How the firmware drives it:** forward = PWM on RPWM with LPWM LOW; reverse = PWM on LPWM with
+  RPWM LOW. 20 kHz at 10 bits (the BTS7960 is specified for PWM up to 25 kHz). EN goes HIGH only
+  while a side is being driven. EN LOW turns all four half-bridges off, so the motors coast; with EN
+  HIGH and both inputs LOW a side brakes. E-stop, disarm and every fault set EN LOW at once.
+- The 10 kΩ pull-downs keep every input LOW while the S3 boots or resets: one on each RPWM and
+  LPWM, and one on the EN pin at each module (6 in total). Solder them at the logic board.
+- R_IS and L_IS are current-sense outputs. The firmware does not read them, so leave them
+  unconnected. Wiring one to an S3 pin would first need the module's sense resistor measured and a
+  divider designed (UNKNOWN).
+- **Heatsink.** At least one seller notes that the heatsink is not insulated from the board. Treat
+  it as live: mount it so it touches no metal and no other module, or fit an insulating thermal pad.
 - **Pairing:** wire both motors on a side so that they spin the same way for the same polarity
   (check each motor alone on a bench supply first). If a whole side runs backwards, swap that
-  side's MA/MB or set `MOTOR_LEFT_INVERT` / `MOTOR_RIGHT_INVERT`. That check happens in bring-up
+  side's M+/M− or set `MOTOR_LEFT_INVERT` / `MOTOR_RIGHT_INVERT`. That check happens in bring-up
   stage 8, with the wheels raised.
-
-**BTS7960 / IBT-2 alternative:** RPWM = A pin (GPIO4 left, GPIO6 right), LPWM = B pin (GPIO5,
-GPIO7), R_EN + L_EN of **both** modules = GPIO15, each with a 10 kΩ pull-down. The IBT-2 inputs
-go through a 74HC244 buffer powered from the module's VCC pin. At VCC = 5 V that buffer needs
-≥ 3.5 V for a HIGH, which 3.3 V GPIO does not guarantee. Power the module's **VCC from 3.3 V**
-(check on your module that VCC feeds only the buffer), or add a 74HCT245 level shifter.
 
 ## 3.6 Sonars (HC-SR04 ×4)
 
@@ -280,8 +292,8 @@ No connection to the S3 other than common power and ground. It talks over Wi-Fi 
 
 ## 3.11 Shopping list (beyond what the team already owns)
 
-3 × HC-SR04 · rigid pan bracket · 2 × MD30C (or confirm the owned
-drivers) · 4 × Pololu #4744 (or #4754 with encoders; or confirm the owned 25GA motors' rating) ·
+3 × HC-SR04 · rigid pan bracket · 2 × BTS7960 IBT-2 modules (if not owned
+yet) · 4 × Pololu #4744 (or #4754 with encoders; or confirm the owned 25GA motors' rating) ·
 1 × 2-pole ON-OFF E-stop switch, DC-rated above the K1 coil current · 1 × 12 V-coil contactor ≥ 40 A DC · 1 × green NO
 push button · fuse holders and 25/15/15/3/3/1/1 A blade fuses · XT60 × 2 pairs, XT30 × 4 pairs ·
 2 × 5 V buck converters (logic and servo, each ≥ 3 A) · 3S Li-ion pack with ≥ 25 A BMS + 12.6 V charger +

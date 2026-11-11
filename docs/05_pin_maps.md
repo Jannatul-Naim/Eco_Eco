@@ -20,16 +20,16 @@ camera link.
 |---|---|---|---|---|
 | 1 | `PIN_BATT_ADC` | in (ADC1) | battery divider 100 k / 22 k, before the contactor | optional; `BATTERY_SENSE_FITTED` |
 | 2 | `PIN_MOTOR_BUS_ADC` | in (ADC1) | motor-bus divider 100 k / 22 k, after the contactor | optional; `MOTOR_BUS_SENSE_FITTED` |
-| 4 | `PIN_LEFT_A` | out PWM | MD30C left **PWM** / BTS7960 left RPWM | 10 kΩ to GND |
-| 5 | `PIN_LEFT_B` | out | MD30C left **DIR** / BTS7960 left LPWM | 10 kΩ to GND |
-| 6 | `PIN_RIGHT_A` | out PWM | MD30C right **PWM** / BTS7960 right RPWM | 10 kΩ to GND |
-| 7 | `PIN_RIGHT_B` | out | MD30C right **DIR** / BTS7960 right LPWM | 10 kΩ to GND |
+| 4 | `PIN_LEFT_RPWM` | out PWM | left BTS7960 **RPWM** (forward) | 10 kΩ to GND |
+| 5 | `PIN_LEFT_LPWM` | out PWM | left BTS7960 **LPWM** (reverse) | 10 kΩ to GND |
+| 6 | `PIN_RIGHT_RPWM` | out PWM | right BTS7960 **RPWM** (forward) | 10 kΩ to GND |
+| 7 | `PIN_RIGHT_LPWM` | out PWM | right BTS7960 **LPWM** (reverse) | 10 kΩ to GND |
 | 10 | sonar 0 TRIG | out | front_center Trig | |
 | 11 | sonar 0 ECHO | in | front_center Echo via 1 k / 1.8 k | |
 | 12 | sonar 1 TRIG | out | front_left Trig | |
 | 13 | sonar 1 ECHO | in | front_left Echo via divider | |
 | 14 | sonar 2 TRIG | out | front_right Trig | |
-| 15 | `PIN_DRIVER_EN` | out | BTS7960 R_EN + L_EN (both modules) | BTS7960 only; 10 kΩ to GND |
+| 15 | `PIN_DRIVER_EN` | out | R_EN + L_EN of both BTS7960 modules | 10 kΩ to GND at each module |
 | 16 | sonar 2 ECHO | in | front_right Echo via divider | |
 | 17 | sonar 3 TRIG | out | rear Trig | |
 | 18 | sonar 3 ECHO | in | rear Echo via divider | |
@@ -38,6 +38,7 @@ camera link.
 | 42 | `PIN_CAM_UART_RX` | in | ESP32-CAM GPIO14 (TX) | |
 | 8, 9, 39, 40 | spare | — | — | believed safe on DevKitC-1-style boards (8/9 were the PCA9685 I²C pins) |
 | 5V / VIN | — | — | logic 5 V buck | |
+| 3V3 | — | out (power) | VCC of both BTS7960 modules | logic buffer only, a few mA |
 
 Pins avoided on purpose: 0, 3, 45, 46 (strapping) · 19, 20 (USB) · 26–32 (flash) · 33–37
 (octal PSRAM/flash on N8R8/N16R8 modules) · 38, 48 (RGB LED on common boards) · 43, 44 (UART0

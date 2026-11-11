@@ -56,11 +56,11 @@ text.c-a { fill: #8F6B00; font-weight: 600; }
       <text class="t-w c-5" x="632" y="80" text-anchor="end">motor bus</text>
 
       <path class="wire w-5" d="M640 85H662"/><rect class="box" x="662" y="71" width="60" height="28" rx="3"/><text class="t-p" x="692" y="89" text-anchor="middle">F5 15A</text>
-      <path class="wire w-5" d="M722 85H742"/><rect class="box" x="742" y="63" width="118" height="44" rx="4"/><text x="801" y="90" text-anchor="middle">Motor driver L</text>
+      <path class="wire w-5" d="M722 85H742"/><rect class="box" x="742" y="63" width="118" height="44" rx="4"/><text x="801" y="90" text-anchor="middle">BTS7960 left</text>
       <path class="wire w-mot" d="M860 85H880"/><rect class="box" x="880" y="63" width="100" height="44" rx="4"/><text x="930" y="90" text-anchor="middle">2 left motors</text>
 
       <path class="wire w-5" d="M640 150H662"/><rect class="box" x="662" y="136" width="60" height="28" rx="3"/><text class="t-p" x="692" y="154" text-anchor="middle">F6 15A</text>
-      <path class="wire w-5" d="M722 150H742"/><rect class="box" x="742" y="128" width="118" height="44" rx="4"/><text x="801" y="155" text-anchor="middle">Motor driver R</text>
+      <path class="wire w-5" d="M722 150H742"/><rect class="box" x="742" y="128" width="118" height="44" rx="4"/><text x="801" y="155" text-anchor="middle">BTS7960 right</text>
       <path class="wire w-mot" d="M860 150H880"/><rect class="box" x="880" y="128" width="100" height="44" rx="4"/><text x="930" y="155" text-anchor="middle">2 right motors</text>
 
       <path class="wire w-5" d="M640 215H662"/><rect class="box" x="662" y="201" width="60" height="28" rx="3"/><text class="t-p" x="692" y="219" text-anchor="middle">F8 3A</text>

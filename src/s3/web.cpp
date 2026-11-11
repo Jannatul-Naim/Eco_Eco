@@ -91,7 +91,7 @@ void fillStatus(JsonObject o, const RoverSnapshot& s) {
   m["armed"] = s.motorsArmed;
   m["left"] = r2(s.outLeft);
   m["right"] = r2(s.outRight);
-  m["driver"] = MOTOR_DRIVER_TYPE == DRIVER_BTS7960 ? "BTS7960" : "MD30C";
+  m["driver"] = MOTOR_DRIVER_NAME;
   m["teleop_max"] = TELEOP_MAX_DUTY;
   o["pinmap"] = ROVER_PINMAP_STATUS;
   o["free_heap"] = ESP.getFreeHeap();
@@ -406,7 +406,7 @@ void webBegin(bool filesystemOk) {
     doc["ok"] = true;
     doc["fw"] = FW_VERSION;
     doc["pinmap"] = ROVER_PINMAP_STATUS;
-    doc["driver"] = MOTOR_DRIVER_TYPE == DRIVER_BTS7960 ? "BTS7960" : "MD30C";
+    doc["driver"] = MOTOR_DRIVER_NAME;
     doc["teleop_max_duty"] = TELEOP_MAX_DUTY;
     doc["teleop_cmd_timeout_ms"] = TELEOP_CMD_TIMEOUT_MS;
     doc["telemetry_period_ms"] = TELEMETRY_PERIOD_MS;

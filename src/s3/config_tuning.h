@@ -10,7 +10,7 @@ constexpr uint32_t CONTROL_PERIOD_MS = 10;
 constexpr uint32_t CONTROL_WDT_TIMEOUT_S = 3;  // task watchdog -> reboot -> outputs off
 
 // ---- Motor output -----------------------------------------------------------
-constexpr uint32_t MOTOR_PWM_HZ = 20000;  // MD30C and BTS7960 both accept 20 kHz (verify datasheet)
+constexpr uint32_t MOTOR_PWM_HZ = 20000;  // BTS7960 is specified for PWM up to 25 kHz
 constexpr uint8_t MOTOR_PWM_BITS = 10;
 constexpr float MOTOR_ACCEL_PER_S = 2.5f;     // full scale per second (0 -> 100 % in 400 ms)
 constexpr float MOTOR_DECEL_PER_S = 6.0f;     // slowing down is allowed to be faster

@@ -147,7 +147,7 @@ Fill this in from the checklist:
 | QR density the camera can read | at 320×240, version 1 (21×21) codes decode well at ~half the picture height (≈ 8 px per module); a version-4 (33×33) code from a phone app was found but not decodable (≈ 5 px per module). Version 2 is marginal | the referee's actual code; if it is denser than version 1–2, add a higher-resolution QR mode |
 | RGB565 byte order | high byte first; likely right (a flat scene came out smooth, not speckled) | `/gray.jpg` of a scene with detail |
 | Motors | Pololu #4744 baseline; the team's notes list "25GA 300 rpm" | label/datasheet of the motors actually fitted |
-| Motor drivers | MD30C baseline; the team's notes list BTS7960 × 2 or a 10 A dual H-bridge | which drivers are actually fitted (the 10 A dual is too small for the baseline motors) |
+| Motor drivers | **decided** (11 Nov 2026): 2 × BTS7960 (IBT-2), one per side, VCC from 3.3 V. The firmware drives only this module; it builds but has not driven a motor yet | stage 8: VCC 3.3 V and inputs 0 V while disarmed, then direction and heat at low duty |
 | Battery and charger | 3S Li-ion with BMS ≥ 25 A (recommended, not chosen) | purchase |
 | Sonar count | 1 owned (front-center fitted in config), 4 planned | purchase; enable each in `SONAR_FITTED` |
 | Pan servo on ESP32-CAM IO2 | **resolved** (2 Nov 2026): boots normally with the servo connected | — |

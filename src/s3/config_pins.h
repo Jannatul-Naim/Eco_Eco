@@ -21,14 +21,13 @@
 constexpr int PIN_BATT_ADC = 1;       // battery divider (100k / 22k), before the contactor
 constexpr int PIN_MOTOR_BUS_ADC = 2;  // motor-bus divider (100k / 22k), after the contactor
 
-// ---- Motor drivers (one single-channel driver per side, two motors in parallel)
-// MD30C:   A = PWM, B = DIR
-// BTS7960: A = RPWM, B = LPWM, PIN_DRIVER_EN -> R_EN + L_EN of both modules
-constexpr int PIN_LEFT_A = 4;
-constexpr int PIN_LEFT_B = 5;
-constexpr int PIN_RIGHT_A = 6;
-constexpr int PIN_RIGHT_B = 7;
-constexpr int PIN_DRIVER_EN = 15;  // BTS7960 only; left unconnected for MD30C
+// ---- Motor drivers: one BTS7960 (IBT-2) module per side, two motors in parallel.
+// RPWM = forward duty, LPWM = reverse duty. Every pin has a 10k pull-down.
+constexpr int PIN_LEFT_RPWM = 4;
+constexpr int PIN_LEFT_LPWM = 5;
+constexpr int PIN_RIGHT_RPWM = 6;
+constexpr int PIN_RIGHT_LPWM = 7;
+constexpr int PIN_DRIVER_EN = 15;  // R_EN + L_EN of both modules
 
 // ---- HC-SR04 sonars. Every ECHO goes through its own 1k / 1k8 divider.
 // Index order is fixed: 0 front-center, 1 front-left, 2 front-right, 3 rear.

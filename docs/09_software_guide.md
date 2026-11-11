@@ -341,7 +341,7 @@ In AUTO, the laptop's drive and pan commands are refused; only E-stop and ABORT 
 | `main.cpp` | `setup()`, the control task, `loop()` |
 | `rover.h`, `rover.cpp` | The state machine, missions, drive shaping. The heart of the rover |
 | `rover_types.h` | States, modes, missions and their names |
-| `motors.*` | PWM output for MD30C or BTS7960 drivers |
+| `motors.*` | PWM output for the two BTS7960 modules: RPWM forward, LPWM reverse, shared EN |
 | `sonar.*` | HC-SR04 timing: one sensor per 40 ms slot, echo timed by an interrupt, median of the last 3 |
 | `estop_input.*` | Reads the E-stop sense pin. OFF acts at once; ON must be stable for 100 ms |
 | `power_sense.*` | Battery and motor-bus voltage, when the dividers are fitted |
@@ -554,7 +554,6 @@ tools/pio.sh run -e s3_main -t uploadfs --upload-port /dev/ttyACM0
 | Change the Wi-Fi network | `src/*/secrets.h` | Upload that board |
 | Move a pin | `src/s3/config_pins.h` (or `config_cam.h`, `config_audio.h`) | Upload; update `docs/05_pin_maps.md`; rebuild the electrical PDF (`python3 tools/make_electrical_pdf.py` stops with an error until its drawings match) |
 | Fit another sonar | `SONAR_FITTED` in `config_hardware.h` | Upload |
-| Use BTS7960 drivers | `MOTOR_DRIVER_TYPE` in `config_hardware.h` | Upload |
 | Fix a motor side spinning backwards | `MOTOR_LEFT_INVERT` / `MOTOR_RIGHT_INVERT` in `config_hardware.h` | Upload |
 | Change teleop top speed | `TELEOP_MAX_DUTY` in `config_tuning.h` | Upload |
 | Tune the proximity stop | `PROX_*` in `config_tuning.h` | Upload, test with the wheels raised first |

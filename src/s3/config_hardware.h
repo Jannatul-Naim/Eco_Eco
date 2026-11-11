@@ -5,15 +5,10 @@
 
 #include <stdint.h>
 
-// ---- Motor driver type -----------------------------------------------------
-// Baseline: two Cytron MD30C (single channel, PWM + DIR, sign-magnitude).
-// Alternative listed in the team's component notes: two BTS7960 (IBT-2)
-// modules (RPWM + LPWM + EN). Select exactly one.
-#define DRIVER_MD30C 1
-#define DRIVER_BTS7960 2
-#ifndef MOTOR_DRIVER_TYPE
-#define MOTOR_DRIVER_TYPE DRIVER_MD30C
-#endif
+// ---- Motor driver -------------------------------------------------------------
+// Two BTS7960 (IBT-2) modules, one per side (team decision, 11 Nov 2026):
+// RPWM + LPWM per module, one shared EN. Wiring: docs/03_electrical.md §3.5.
+constexpr const char* MOTOR_DRIVER_NAME = "BTS7960";
 
 // Flip a side if "forward" spins that side backwards during the raised-wheel test.
 constexpr bool MOTOR_LEFT_INVERT = false;

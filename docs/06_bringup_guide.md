@@ -102,7 +102,7 @@ not connected to drivers. Nothing connected to the S3 except the USB cable.
 - a banner with `URRT rover main controller  s3-main 0.1.0`, the chip model (`ESP32-S3`), core
   count, CPU MHz, the MAC (as esptool prints it) and `PSRAM not enabled in this build` (the S3 does
   not use PSRAM even if the module has some)
-- `pin map: PROVISIONAL`, `motor driver: MD30C | E-stop sense: fitted | battery sense: not fitted`
+- `pin map: PROVISIONAL`, `motor driver: BTS7960 | E-stop sense: fitted | battery sense: not fitted`
 - `sonars fitted: FC=1 FL=0 FR=0 REAR=0`
 - `motor outputs start DISABLED`
 - an event `BOOT -> ESTOP: E-stop pressed (or sense wire open) at boot`. **This is correct**:
@@ -285,7 +285,9 @@ from the bracket for the first test.**
 the E-stop for the whole stage.
 
 1. Check each motor alone on a bench supply (or the driver at low duty) for direction, then
-   wire the pairs per [03_electrical.md](03_electrical.md) §3.5. Insert F5/F6. Press ARM.
+   wire the pairs per [03_electrical.md](03_electrical.md) §3.5. Before F5/F6 go in, with the S3
+   running and motors disarmed, meter each BTS7960 module: VCC **3.3 V**, RPWM, LPWM and EN
+   **0 V**. Insert F5/F6. Press ARM.
 2. Console:
 
    ```

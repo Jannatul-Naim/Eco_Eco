@@ -50,7 +50,7 @@ does.
             "source": "none", "reset_allowed": false},
   "battery": {"wired": false, "v": null, "pct": null, "low": null},
   "motor_bus": {"wired": false, "v": null, "present": null},
-  "motors": {"armed": true, "left": 0.22, "right": -0.1, "driver": "MD30C", "teleop_max": 0.6},
+  "motors": {"armed": true, "left": 0.22, "right": -0.1, "driver": "BTS7960", "teleop_max": 0.6},
   "pinmap": "PROVISIONAL", "free_heap": 201234
 }
 ```
