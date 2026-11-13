@@ -83,11 +83,11 @@ constexpr uint16_t MOTION_MIN_PIXELS = 8;       // fewer changed cells = no targ
 constexpr float MOTION_GLOBAL_FRAC = 0.35f;     // more = exposure jump / camera moved
 constexpr uint8_t MOTION_SETTLE_FRAMES = 2;     // frames skipped after the pan settles
 
-// ---- Camera-pan servo (MG996R, 180° positional type). Signal on GPIO2, the only free pin that neither
+// ---- Camera-pan servo (SG90, 180° positional type). Signal on GPIO2, the only free pin that neither
 // stops the boot (GPIO12) nor pulses at power-up (GPIO15). GPIO2 is a strapping
 // pin: nothing may pull it HIGH at reset. Power the servo from its own 5 V
-// supply (>= 3 A: an MG996R stalls at ~2.5 A) with a common GND, never from
-// this board's 5V pin. PROVISIONAL until
+// supply (the servo XL4015 on the motor bus; seller data puts SG90 stall at
+// 0.55 A to over 1 A) with a common GND, never from this board's 5V pin. PROVISIONAL until
 // docs/06 stage 6 confirms no twitch at boot. Angle limits: boardlink::kPan*.
 constexpr bool PAN_SERVO_FITTED = true;
 constexpr int PAN_PIN = 2;

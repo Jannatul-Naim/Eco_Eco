@@ -13,7 +13,7 @@ electrical handoff the build needs.
 | Board | Folder | Job | Motor authority |
 |---|---|---|---|
 | ESP32-S3 (main) | `src/s3/` | drive, E-stop latch, 4× sonar, missions, dashboard + API, on-board ICMP ping; picks the camera's pan mode | **the only one** |
-| ESP32-CAM | `src/cam/` | MJPEG stream, QR decode + IPv4 check, motion detection, MG996R camera pan (scan + target following) | none (observations + its own pan servo) |
+| ESP32-CAM | `src/cam/` | MJPEG stream, QR decode + IPv4 check, motion detection, SG90 camera pan (scan + target following) | none (observations + its own pan servo) |
 | ESP32 DevKit (optional) | `src/audio/` | two-way audio relay (INMP441 mic, MAX98357A speaker) | none (status heartbeat only) |
 | Operator / Rover WebRTC | `audio_comm/` | full-duplex WebRTC 2-way audio link (operator control panel ↔ rover / phone / Bluetooth speaker & mic) | none |
 | Operator laptop | `data/` (served by the S3) | dashboard, gamepad teleop | rejected while AUTO is active |

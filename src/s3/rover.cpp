@@ -57,10 +57,11 @@ void Rover::begin() {
   sonar_.begin();
   cam_.begin();
 
-  // Let the E-stop input settle so the boot state reflects the real switch.
+  // Let the E-stop inputs settle so the boot state reflects the real switch.
   const uint32_t t0 = millis();
   while (millis() - t0 < 150) {
     estop_.update(millis());
+    power_.update(millis());
     delay(5);
   }
   const uint32_t now = millis();
@@ -68,10 +69,14 @@ void Rover::begin() {
   modeChangedMs_ = now;
   if (estop_.pressed()) {
     enterEstop("hardware", "E-stop pressed (or sense wire open) at boot", now);
+  } else if (busEstop()) {
+    enterEstop("hardware", "E-stop switch OFF at boot: no motor-bus voltage", now);
   } else {
     setState(State::Idle, now, "ready; motor outputs disabled");
   }
-  if (!ESTOP_SENSE_FITTED) g_events.add(EvLevel::Warn, "E-stop sense not fitted: firmware cannot see the hardware E-stop");
+  if (!ESTOP_SENSE_FITTED && !ESTOP_FROM_MOTOR_BUS) {
+    g_events.add(EvLevel::Warn, "E-stop sense not fitted: firmware cannot see the hardware E-stop");
+  }
   if (!sonar_.fitted(REAR)) g_events.add(EvLevel::Warn, "rear sonar not fitted: reverse is always blocked");
 }
 
@@ -135,6 +140,7 @@ void Rover::finishMission(bool success, uint32_t nowMs, const char* fmt, ...) {
 }
 
 bool Rover::motorPowerAbsent() const { return MOTOR_BUS_SENSE_FITTED && !power_.motorBusPresent(); }
+bool Rover::busEstop() const { return ESTOP_FROM_MOTOR_BUS && !power_.motorBusPresent(); }
 
 bool Rover::reverseAllowed(uint32_t nowMs, const char** reason) const {
   if (!sonar_.fitted(REAR)) {
@@ -171,8 +177,11 @@ void Rover::tick(uint32_t nowMs) {
   if (estop_.pressed() && state_ != State::EStop) {
     enterEstop("hardware", "hardware E-stop pressed (or sense wire open)", nowMs);
   }
+  if (busEstop() && state_ != State::EStop) {
+    enterEstop("hardware", "E-stop switch OFF: no motor-bus voltage", nowMs);
+  }
   if (armed_ && motorPowerAbsent() && state_ != State::EStop) {
-    enterEstop("motor_power", "motor bus lost while armed (E-stop, contactor or fuse)", nowMs);
+    enterEstop("motor_power", "motor bus lost while armed (E-stop, fuse or wiring)", nowMs);
   }
 
   float tl = 0.0f, tr = 0.0f, cap = 1.0f;
@@ -269,9 +278,10 @@ void Rover::applyDrive(float l, float r, bool armed, float cap, uint32_t nowMs, 
     }
   }
 
-  // Keep the average motor voltage within the 12 V rating on a full 3S pack.
-  const float vcap = power_.batteryValid() ? clampf(MOTOR_RATED_V / power_.batteryV(), 0.0f, 1.0f)
-                                           : MOTOR_DUTY_CAP_NO_VSENSE;
+  // Keep the average motor voltage within its 12 V rating on a full 3S pack.
+  const float vcap = power_.motorBusWired() && power_.motorBusPresent()
+                         ? clampf(MOTOR_RATED_V / power_.motorBusV(), 0.0f, 1.0f)
+                         : MOTOR_DUTY_CAP_NO_VSENSE;
   l = clampf(l, -vcap, vcap);
   r = clampf(r, -vcap, vcap);
 
@@ -493,7 +503,7 @@ CmdResult Rover::setMode(Mode m, Mission mission, bool missionGiven, CmdSource s
       setState(State::Idle, now, "mode idle (%s); outputs disabled", sourceName(src));
       break;
     case Mode::Teleop:
-      if (motorPowerAbsent()) return CmdResult::conflict("motor power absent: release E-stop and press ARM");
+      if (motorPowerAbsent()) return CmdResult::conflict("motor power absent: E-stop switch OFF or motor fuse blown");
       if (autoActive(state_)) {
         g_events.add(EvLevel::Warn, "AUTO aborted by operator -> teleop (%s)", sourceName(src));
       }
@@ -528,7 +538,7 @@ CmdResult Rover::startMission(CmdSource src) {
   }
   const bool drives = mission_ == Mission::Traverse || mission_ == Mission::Proximity;
   if (drives) {
-    if (motorPowerAbsent()) return CmdResult::conflict("motor power absent: release E-stop and press ARM");
+    if (motorPowerAbsent()) return CmdResult::conflict("motor power absent: E-stop switch OFF or motor fuse blown");
     if (!sonar_.fitted(FC)) return CmdResult::conflict("front-center sonar not fitted");
     if (!sonar_.fresh(FC, now)) return CmdResult::conflict("front-center sonar has no fresh reading");
   } else if (!cam_.fresh(now)) {
@@ -586,11 +596,12 @@ CmdResult Rover::resetEstop(CmdSource src) {
   const uint32_t now = millis();
   if (state_ != State::EStop) return CmdResult::conflict("not in E-stop");
   if (estop_.pressed()) return CmdResult::conflict("hardware E-stop switch still OFF or sense wire open");
+  if (busEstop()) return CmdResult::conflict("E-stop switch still OFF: no motor-bus voltage");
   estopLatched_ = false;
   estopSource_ = "none";
   mode_ = Mode::Idle;
   modeChangedMs_ = now;
-  setState(State::Idle, now, "E-stop reset (%s); outputs disabled; press ARM to restore motor power", sourceName(src));
+  setState(State::Idle, now, "E-stop reset (%s); outputs disabled; choose a mode", sourceName(src));
   return CmdResult::accepted("E-stop reset; mode idle");
 }
 
@@ -658,8 +669,8 @@ void Rover::snapshot(RoverSnapshot* s) const {
   s->stateChangedMs = stateChangedMs_;
   strncpy(s->detail, detail_, sizeof(s->detail));
   s->estopActive = state_ == State::EStop;
-  s->estopHwPressed = estop_.pressed();
-  s->estopSense = estop_.senseName();
+  s->estopHwPressed = estop_.pressed() || busEstop();
+  s->estopSense = ESTOP_FROM_MOTOR_BUS ? "motor_bus" : estop_.senseName();
   s->estopSource = estopLatched_ ? estopSource_ : "none";
   s->motorsArmed = armed_;
   s->outLeft = motors_.left();

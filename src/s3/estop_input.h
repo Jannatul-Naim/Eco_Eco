@@ -1,6 +1,6 @@
-// Hardware E-stop sense input (second pole of the E-stop switch).
+// Hardware E-stop sense input (second pole of a 2-pole E-stop switch).
 // This input only INFORMS the firmware. Cutting motor power is done by the
-// E-stop contact + contactor in hardware and never depends on this code.
+// E-stop switch in hardware and never depends on this code.
 #pragma once
 
 #include <Arduino.h>

@@ -1,5 +1,6 @@
-// Battery and motor-bus voltage sensing through resistor dividers (optional).
+// Battery and motor-bus voltage sensing through resistor dividers.
 // When a divider is not fitted the value is reported as "not wired", never guessed.
+// With ESTOP_FROM_MOTOR_BUS the motor-bus reading is the E-stop sense.
 #pragma once
 
 #include <Arduino.h>

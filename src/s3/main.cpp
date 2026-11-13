@@ -1,8 +1,8 @@
 // URRT rover — ESP32-S3 main controller.
 //
 // The S3 is the only authority over the drive motors. Physical safety does
-// NOT depend on this firmware: the hardware E-stop opens the motor-power
-// contactor directly (docs/03_electrical.md).
+// NOT depend on this firmware: the hardware E-stop switch cuts motor and servo
+// power directly (docs/03_electrical.md).
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <esp_task_wdt.h>

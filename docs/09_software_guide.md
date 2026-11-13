@@ -35,8 +35,9 @@ Three rules hold everywhere in the code:
 
 1. **Only the S3 can move the wheels.** The camera and audio boards have no message that can
    reach the motors. The link protocol has no drive command at all.
-2. **The hardware E-stop does not depend on any code.** The switch cuts the contactor coil
-   directly. The firmware only *reads* a second pole of the switch to show and latch the state.
+2. **The hardware E-stop does not depend on any code.** The switch cuts the motor supply
+   directly. The firmware only *reads* the motor-bus voltage to show and latch the state, and to
+   keep motion from restarting when the switch goes back ON.
 3. **When in doubt, stop.** Stale sensors, a lost link, a missing wire or a slow loop all end in
    zero motor output, never in "keep going".
 
@@ -256,8 +257,8 @@ Configuration files you are expected to edit (code reads these; change values, n
 5. `webBegin()`: start the web server, API and WebSocket.
 6. Start the **control task** with a 3 s watchdog.
 
-The state starts at BOOT, then IDLE with motor outputs disabled. If the E-stop sense wire is open,
-it goes straight to ESTOP. That is the fail-safe.
+The state starts at BOOT, then IDLE with motor outputs disabled. If the E-stop switch is OFF (no
+motor-bus voltage on GPIO2), it goes straight to ESTOP. That is the fail-safe.
 
 ### Two loops run at the same time
 
@@ -323,7 +324,7 @@ In AUTO, the laptop's drive and pan commands are refused; only E-stop and ABORT 
 
 | Layer | What happens |
 |---|---|
-| Hardware E-stop | Cuts motor power in hardware. Firmware sees it on GPIO21 and latches ESTOP |
+| Hardware E-stop | Cuts motor power in hardware. Firmware sees the motor bus drop on GPIO2 (read every 10 ms) and latches ESTOP; `reset` is refused until the bus is back |
 | Open sense wire | Treated exactly like the E-stop being OFF |
 | Software E-stop | Dashboard button, Space/Esc, gamepad B, console `estop`: cuts PWM at once and latches |
 | Teleop timeout | No fresh drive command for 300 ms: stop |
@@ -343,7 +344,7 @@ In AUTO, the laptop's drive and pan commands are refused; only E-stop and ABORT 
 | `rover_types.h` | States, modes, missions and their names |
 | `motors.*` | PWM output for the two BTS7960 modules: RPWM forward, LPWM reverse, shared EN |
 | `sonar.*` | HC-SR04 timing: one sensor per 40 ms slot, echo timed by an interrupt, median of the last 3 |
-| `estop_input.*` | Reads the E-stop sense pin. OFF acts at once; ON must be stable for 100 ms |
+| `estop_input.*` | Reads the E-stop sense pin of a 2-pole switch (not used now: the 1-pole switch is sensed through the motor bus in `power_sense.*`) |
 | `power_sense.*` | Battery and motor-bus voltage, when the dividers are fitted |
 | `cam_link.*` | The camera UART: sends the configuration, parses heartbeat, QR and motion messages |
 | `pinger.*` | Sends the ICMP ping for the QR task |
@@ -558,7 +559,8 @@ tools/pio.sh run -e s3_main -t uploadfs --upload-port /dev/ttyACM0
 | Change teleop top speed | `TELEOP_MAX_DUTY` in `config_tuning.h` | Upload |
 | Tune the proximity stop | `PROX_*` in `config_tuning.h` | Upload, test with the wheels raised first |
 | Correct sonar distances | `SONAR_FACE_TO_BUMPER_MM`, `SONAR_SCALE` in `config_hardware.h` | Upload, check with a ruler |
-| Turn on battery voltage sensing | Solder the divider, then `BATTERY_SENSE_FITTED` | Upload, calibrate `BATTERY_CAL_GAIN` |
+| Turn on logic-pack voltage sensing | Solder R21/R22, then `BATTERY_SENSE_FITTED` | Upload, calibrate `BATTERY_CAL_GAIN` |
+| Switch to a 2-pole E-stop | `ESTOP_SENSE_FITTED = true`, `ESTOP_FROM_MOTOR_BUS = false` in `config_hardware.h` | Upload; wire pole B to GPIO21 |
 | Calibrate the servo | `SERVO_US_AT_0_DEG`, `SERVO_US_AT_180_DEG` in `config_cam.h` (find values with `pulse` in IDLE) | `tools/cam_ota.sh` |
 | Flip the camera image | `CAM_VFLIP`, `CAM_HMIRROR` in `config_cam.h` | `tools/cam_ota.sh` |
 | Tune motion sensitivity | `MOTION_*` in `config_cam.h` | `tools/cam_ota.sh` |
@@ -603,7 +605,7 @@ Never commit a `secrets.h`. `git status` should never list one.
 | The dashboard stopped loading after a reboot | The router gave the S3 a new IP (it moved from .139 to .138) | Use `http://urrt-rover.local/`, or `wifi` in the console, or set a fixed lease in the router |
 | Page says "Dashboard files not uploaded" | LittleFS empty or wiped | `uploadfs` |
 | Old dashboard after uploading | Browser cache | Ctrl+Shift+R |
-| Boots straight into ESTOP | E-stop sense wire open (GPIO21) | Check the switch and wire. On the bench only, with nothing that moves connected, a jumper from GPIO21 to GND stands in for it |
+| Boots straight into ESTOP | E-stop switch OFF, F1 blown, or no motor-bus voltage on GPIO2 | Switch SW1 ON, check F1 and the sense lead, then RESET E-STOP. On the bench only, with nothing that moves connected, a jumper from GPIO2 to 3V3 stands in for the bus |
 | RESET E-STOP refused | The switch is still OFF or the wire is open | Switch it ON first; check the wire |
 | Camera link `never` | Wires 41/42/GND, camera power, or the camera crashed | Check the 3 wires; look at `http://<camera-ip>/status` |
 | No video, but the link is fine | The stream already has a viewer | Close the other tab; only one viewer at a time |

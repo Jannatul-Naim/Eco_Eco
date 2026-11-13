@@ -106,6 +106,8 @@ class Rover {
   void resetMissionState(uint32_t nowMs);
   bool reverseAllowed(uint32_t nowMs, const char** reason) const;
   bool motorPowerAbsent() const;
+  // 1-pole E-stop switch in the motor supply (ESTOP_FROM_MOTOR_BUS) reads OFF.
+  bool busEstop() const;
 
   void runTraverse(uint32_t nowMs, float* l, float* r);
   void runProximity(uint32_t nowMs, float* l, float* r);

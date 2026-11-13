@@ -241,7 +241,7 @@ void consolePrintBanner() {
 #endif
   Serial.printf(" pin map: %s (see docs/05_pin_maps.md)\n", ROVER_PINMAP_STATUS);
   Serial.printf(" motor driver: %s | E-stop sense: %s | battery sense: %s\n",
-                MOTOR_DRIVER_NAME, ESTOP_SENSE_FITTED ? "fitted" : "NOT fitted",
+                MOTOR_DRIVER_NAME, ESTOP_FROM_MOTOR_BUS ? "motor bus (GPIO2)" : ESTOP_SENSE_FITTED ? "pole B (GPIO21)" : "NOT fitted",
                 BATTERY_SENSE_FITTED ? "fitted" : "not fitted");
   Serial.printf(" sonars fitted: FC=%d FL=%d FR=%d REAR=%d\n", SONAR_FITTED[0], SONAR_FITTED[1], SONAR_FITTED[2],
                 SONAR_FITTED[3]);

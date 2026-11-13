@@ -22,14 +22,16 @@ bool PowerSense::batteryWired() const { return BATTERY_SENSE_FITTED; }
 bool PowerSense::motorBusWired() const { return MOTOR_BUS_SENSE_FITTED; }
 
 void PowerSense::update(uint32_t nowMs) {
+  // The bus is read on every control tick: with ESTOP_FROM_MOTOR_BUS it is how
+  // the firmware sees the E-stop switch, so a quick OFF-ON must not slip through.
+  if (MOTOR_BUS_SENSE_FITTED) {
+    busV_ = readVolts(PIN_MOTOR_BUS_ADC, MOTOR_BUS_DIVIDER_RATIO, MOTOR_BUS_CAL_GAIN);
+  }
   if (nowMs - lastMs_ < BATTERY_SAMPLE_MS) return;
   lastMs_ = nowMs;
   if (BATTERY_SENSE_FITTED) {
     const float v = readVolts(PIN_BATT_ADC, BATTERY_DIVIDER_RATIO, BATTERY_CAL_GAIN);
     battV_ = (battV_ < 0.5f) ? v : battV_ * 0.7f + v * 0.3f;
-  }
-  if (MOTOR_BUS_SENSE_FITTED) {
-    busV_ = readVolts(PIN_MOTOR_BUS_ADC, MOTOR_BUS_DIVIDER_RATIO, MOTOR_BUS_CAL_GAIN);
   }
 }
 

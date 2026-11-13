@@ -16,10 +16,10 @@
                               └──┬────────────┬────┘            │ motion, pan │ │ mic + spk │
                                  │PWM + EN    │GPIO             └──────┬──────┘ └───────────┘
                           ┌──────┴───┐        └─ 4× HC-SR04            │IO2
-                          │2× BTS7960│           (1k/1k8 dividers) MG996R camera pan
+                          │2× BTS7960│           (1k/1k8 dividers) SG90 camera pan  
                           └────┬─────┘
                      4 motors (2 per side, in parallel)
-           motor and servo power pass through the DC contactor that the E-stop opens
+           motor and servo power pass through the E-stop switch (motor pack BT1)
 ```
 
 The rules this layout enforces:
@@ -32,8 +32,8 @@ The rules this layout enforces:
   and target following run on the ESP32-CAM; mission logic, the ping and sonar control run on the
   S3. The laptop is not involved: commands from it
   are rejected while `mode == auto` (`Rover::drive`, `setPan`), except E-stop and abort.
-- **The hardware E-stop does not depend on software.** It opens the motor-power contactor
-  directly. The S3 also reads the E-stop switch's second pole and latches `ESTOP`. A software E-stop
+- **The hardware E-stop does not depend on software.** The switch cuts the motor supply
+  directly. The S3 also watches the motor-bus voltage (GPIO2) and latches `ESTOP` when it drops. A software E-stop
   (dashboard, console, gamepad B button) cuts the PWM outputs and latches the same state, but it
   is an extra layer, not a substitute.
 
@@ -66,7 +66,7 @@ stateDiagram-v2
   AUTO_FAILED. They follow commands only in TELEOP (fresh operator commands) or
   AUTO_RUNNING/AUTO_BLOCKED (mission code).
 - Releasing the hardware E-stop never restarts motion. The firmware stays in ESTOP until an
-  explicit reset, then goes to IDLE. The contactor also needs the ARM button
+  explicit reset, which it refuses while the motor bus is still dead, then goes to IDLE
   ([03_electrical.md](03_electrical.md) §3.4).
 
 ## 1.3 Safety layers on the S3
@@ -77,12 +77,12 @@ stateDiagram-v2
 | Teleop timeout | no fresh drive command for 300 ms → stop | `TELEOP_CMD_TIMEOUT_MS` |
 | Teleop cap | duty ≤ 60 % | `TELEOP_MAX_DUTY` |
 | Slew limit | accel 2.5 /s, decel 6 /s | `MOTOR_ACCEL_PER_S` |
-| Motor voltage cap | duty ≤ 12.0 V / V<sub>batt</sub> (0.95 when the battery is not measured) | `MOTOR_RATED_V` |
+| Motor voltage cap | duty ≤ 12.0 V / V<sub>motor bus</sub> (0.95 when the bus is not measured) | `MOTOR_RATED_V` |
 | Rear interlock | backward component removed unless the rear sonar is fresh and ≥ 200 mm | `REAR_CLEARANCE_MM` |
 | Sonar freshness | readings older than 400 ms are not trusted; a driving mission → SAFE_STOP | `SONAR_STALE_MS` |
 | Camera freshness | heartbeat older than 1 s → camera missions SAFE_STOP | `CAM_LINK_STALE_MS` |
 | Control-loop watchdog | task watchdog 3 s → reboot (outputs off); lock starved 200 ms → E-stop | `CONTROL_WDT_TIMEOUT_S` |
-| Motor bus sense (optional) | bus lost while armed → ESTOP | `MOTOR_BUS_SENSE_FITTED` |
+| E-stop sense (motor bus) | bus below 6 V, read every 10 ms → ESTOP; reset refused until it is back | `ESTOP_FROM_MOTOR_BUS`, `MOTOR_BUS_SENSE_FITTED` |
 
 ## 1.4 Missions (AUTO)
 

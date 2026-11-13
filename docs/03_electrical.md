@@ -14,9 +14,11 @@ assumes, how each one is powered and wired, and which items still need confirmin
 Rulebook constraints that shape this design (Mechanical & Electrical Rulebook V1.3):
 
 - 1.2: a red **mushroom-head** E-stop that removes power from all actuators **in hardware**. Releasing it must not restart motion.
-  **Not met by team decision (6 Nov 2026):** the team uses a 2-pole ON-OFF switch instead of the mushroom-head
-  button. Get the organisers' approval in writing before building it. The inspector may refuse it, and a rover
-  that fails the E-stop test may not run (1.2.3).
+  **Team decisions (6 and 13 Nov 2026):** the E-stop is a plain 2-pin ON/OFF switch (SW1) in the motor
+  supply line. It removes power from the motors and the servo in hardware. It is not a mushroom-head button,
+  so **1.2.1 is NOT met**. "No restart on release" is enforced by the S3 firmware and the driver pull-downs,
+  **not by hardware** (§3.4). Get the organisers' approval in writing before inspection. The inspector may
+  refuse it, and a rover that fails the E-stop test may not run (1.2.3).
 - 3.1: circuits on **soldered veroboard/perfboard or PCB**. No breadboards anywhere on the rover.
 - 3.2: **XT30/XT60/XT90 or Deans** on every power connection between the battery, E-stop, distribution and drivers. Red wire for every positive line, black for ground, any other colour for signals.
 - 3.3: nominal battery ≤ 24 V, fused, secured, and carried and charged in a fire-resistant bag.
@@ -25,149 +27,165 @@ Rulebook constraints that shape this design (Mechanical & Electrical Rulebook V1
 
 ## 3.1 Bill of materials
 
-### Drive
+### The team's component list (13 Nov 2026)
 
-| # | Part | Qty | Label | Notes |
-|---|---|---|---|---|
-| D1 | 12 V brushed gearmotor, **Pololu #4744** (37D × 54L mm, 70:1, helical pinion, **no encoder**) | 4 | RECOMMENDED (baseline); "four drive motors" CONFIRMED | Pololu data at 12 V: 150 RPM, 0.2 A no-load, **5.5 A stall** (extrapolated), keep continuous load ≤ 10 kg·cm. The encoder version is **#4754**: buy that if you want the traverse task to be able to finish as COMPLETE. |
-| D2 | **BTS7960 / IBT-2** motor driver module: two Infineon BTS7960B half-bridges (a full H-bridge) and a 74HC244 input buffer | 2 | team decision (11 Nov 2026); "BTS7960 (2 pcs)" in the team's notes | Seller data: 5.5–27 V motor supply, 3.3–5 V logic, PWM up to 25 kHz, current limit 43 A typical. One module per side, with that side's two motors in parallel. Logic VCC from the S3's 3.3 V (§3.5). |
+Every row is **CONFIRMED** as the team's choice. The last column says what still has to be checked
+on the part itself.
 
-**Driver sizing with real data.** The per-side load is 2 × 5.5 A = **11 A at stall**, and both
-sides together 22 A. BTS7960: its current limit (43 A typical) is about 4× the per-side stall. That
-limit is a protection threshold, not a continuous rating: run the module with its heatsink, and
-let the branch fuses (§3.3) protect the wiring. A "10 A dual H-bridge" (the other option in the
-team's notes) is **below** the 11 A per-side stall of these motors. Do not use it with this motor
-choice.
+| # | Part (team list) | Qty | Ref | Use in this design | Check before wiring |
+|---|---|---|---|---|---|
+| 1 | BTS7960 motor driver (IBT-2 module) | 2 | U4, U5 | one per side, each side's two motors in parallel (§3.5) | VCC pin has no connection to B+ |
+| 2 | 25GA 300 RPM DC gear motor, **12 V** | 4 | M1–M4 | M1, M2 left; M3, M4 right | **stall current UNKNOWN**: measure it (test T17); it sets F1 |
+| 3 | 25GA motor mount | 4 | — | mechanical | |
+| 4 | 25GA hex long shaft (coupling) | 4 | — | mechanical | |
+| 5 | 85 mm wheel | 4 | — | mechanical | |
+| 6 | "INA 441" (name to verify) | 1 | U8 | assumed to be the **INMP441** I²S microphone (optional audio, §3.9) | **UNKNOWN** until the marking is read. An INMP441 board has SCK, WS, SD, L/R, VDD, GND |
+| 7 | MAX98357 I²S audio amplifier | 1 | U9 | optional audio | |
+| 8 | 4 Ω 3 W speaker | 1 | LS1 | optional audio | |
+| 9 | HC-SR04 ultrasonic sensor | 4 | US1–US4 | front-centre, front-left, front-right, rear (§3.6) | only US1 is wired and tested so far |
+| 10 | 12 V 4-inch fan | 1 | FAN1 | on the logic pack after SW2 | current on its label (**UNKNOWN**) |
+| 11 | Female header | 2 | — | sockets for U1 (and U2) on the logic board | strip length **UNKNOWN**: U1 alone needs 2 × 22 pins |
+| 12 | ON/OFF switch, **2 pins** (single-pole) | 2 | SW1, SW2 | SW1 = E-STOP in the motor line, SW2 = POWER in the logic line | **rating UNKNOWN**: SW1 must be DC-rated at ≥ the F1 current (§3.4) |
+| 13 | 4-pin JST connector, 90° | 15 | P1–P10 | board side of every signal cable (§3.10) | |
+| 14 | 4-pin JST connector, straight | 15 | — | cable side, mating P1–P10 | |
+| 15 | Double-sided vero board | 1 | — | the logic board (§3.10). No motor current on it | |
+| 16 | XL4015 DC-DC buck converter, 5 A | 2 | U6, U7 | U6 = logic 5 V from the logic pack; U7 = servo 5 V from the motor bus | set each to 5.0 V with nothing connected (test T3, T12) |
+| 17 | 850 mAh LiPo, **3S** (11.1 V, 12.6 V full) | 2 | BT1, BT2 | BT1 = motor pack, BT2 = logic pack (§3.3) | which plug each pack has; its C rating |
+| 18 | ESP32 DevKit | 1 | U3 | optional audio board | |
+| 19 | ESP32-S3 development board | 1 | U1 | main controller, the only motor authority | runs today on the bench |
+| 20 | ESP32-CAM module | 1 | U2 | camera, QR, motion, pan servo signal | runs today on the bench (GC2145 sensor) |
+| 21 | SG90 servo | 1 | SV1 | camera pan (§3.7) | that it holds a position (a "360°" SG90 cannot) |
 
-**3S battery vs 12 V motors.** A full 3S pack is 12.6 V, 5 % above the motor rating. The
-firmware caps PWM duty at 12.0 V / V<sub>battery</sub> once the battery divider is fitted and
-calibrated (`BATTERY_SENSE_FITTED`), and at a fixed 0.95 (= 12.0 / 12.6) otherwise. Fit the
-divider so the cap follows the real voltage.
+Also owned, not on the rover: the ESP32-CAM-MB programming board (shows up as an FTDI FT232R,
+`0403:6001`; **no auto-reset**: hold IO0 and press RST to flash, press RST alone to run).
 
-### Power and safety
+### Must add: not in the list, but the rules or the circuit need it
 
-| # | Part | Qty | Label | Notes |
-|---|---|---|---|---|
-| P1 | 3S Li-ion pack (11.1 V nominal, 12.6 V full) **with BMS**, XT60 lead | 1 | RECOMMENDED | e.g. 3S2P of high-drain 18650 cells (≥ 15 A continuous each) ≈ 5 Ah. **BMS continuous rating ≥ 25 A.** Typical drive current is about 2–6 A, stall worst case 22 A. |
-| P2 | Matching 3S Li-ion CC/CV charger, 12.6 V, 1–2 A | 1 | RECOMMENDED | never a generic 12 V adapter |
-| P3 | Fire-resistant battery bag (LiPo-safe) | 1 | RECOMMENDED | rulebook 3.3.2: carry and charge in it |
-| P4 | **2-pole ON-OFF E-stop switch** (DPST, latching), labelled E-STOP, red if possible, contacts DC-rated above the K1 coil current at ≥ 14 V DC | 1 | team decision (6 Nov 2026); **does not meet rule 1.2.1**, which asks for a red mushroom-head button | pole A breaks the contactor coil, pole B tells the S3 (`PIN_ESTOP_SENSE`). ON = run, OFF = stop. The single-pole KCD11 in the team's notes cannot do both jobs. |
-| P5 | DC contactor / power relay, **12 V coil**, contacts rated **≥ 40 A at ≥ 14 V DC** | 1 | RECOMMENDED | check the DC (not AC) contact rating on the datasheet. A sealed automotive 40 A relay with a DC rating is acceptable. |
-| P6 | Momentary NO push button, green, "ARM" | 1 | RECOMMENDED | the deliberate restart action (rule 1.2.4) |
-| P7 | Flyback diode across the contactor coil (1N4007) | 1 | RECOMMENDED | cathode to coil +. Omit if the relay has a built-in diode (check polarity). |
-| P8 | Inline blade-fuse holders + fuses: **25 A** main, **15 A** × 2 (driver branches), **3 A** logic, **3 A** servo supply, **1 A** × 2 (coil/ARM and hold path) | 1 set | RECOMMENDED | slow-blow automotive blade (ATO/ATC). Main fuse as close to the battery as possible. |
-| P9 | XT60 pairs (battery; K1 to motor bus), XT30 pairs (driver branches, buck inputs) | 2 + 4 | RECOMMENDED | rulebook 3.2.1 |
-| P10 | 5 V buck converter, ≥ 3 A continuous, 6–24 V in ("logic 5 V") | 1 | RECOMMENDED | S3, ESP32-CAM, sonars, optional audio board |
-| P11 | 5 V buck converter, ≥ 3 A continuous ("servo 5 V") | 1 | RECOMMENDED | MG996R only (stall ≈ 2.5 A); fed from the **motor bus** so the E-stop also stops the servo |
-| P12 | Wire: 14 AWG silicone red/black (battery to drivers), 18 AWG (drivers to motors), 22 AWG red/black (5 V rails), 24–26 AWG coloured (signals) | — | RECOMMENDED | rulebook 3.2.3 colours |
-| P13 | 12 V DC 4-inch case fan | 1 | listed in the team's notes; current UNKNOWN | on the logic branch (after the 3 A fuse); check its current on the label |
-
-### Control, sensing, camera
-
-| # | Part | Qty | Label | Notes |
-|---|---|---|---|---|
-| C1 | ESP32-S3 dev board, marked "ESP32 23 2022 V1.3" | 1 | CONFIRMED (owned); ESP32-S3-N16R8, DevKitC-1 header (photo) | treated as DevKitC-1 compatible, see [05_pin_maps.md](05_pin_maps.md). Photograph both sides and the header silkscreen before wiring. |
-| C2 | ESP32-CAM assembly with "RHYX M21-45" camera | 1 | CONFIRMED (owned); GC2145, PID 0x2145 at boot | AI-Thinker layout confirmed by a working camera init. |
-| C3 | ESP32-CAM-MB board (shows up as an FTDI FT232R, `0403:6001`), to flash the ESP32-CAM | 1 | CONFIRMED (owned) | the ESP32-CAM has no USB port. This MB has **no auto-reset**: hold IO0, press RST to flash; press RST alone to run |
-| C4 | HC-SR04 ultrasonic sensor | 4 | **1 CONFIRMED**, 3 to buy | front-center, front-left, front-right, rear. Fit order: front-center, then **rear** (enables reverse), then left/right. |
-| C5 | Echo divider per sonar: 1 kΩ series + 1.8 kΩ to GND (5 V → 3.2 V) | 4 sets | RECOMMENDED | **never** connect 5 V Echo straight to an ESP32 pin |
-| C6 | ~~PCA9685 PWM board~~ | 0 | **not needed** | since 1 Nov 2026 the ESP32-CAM drives the servo signal itself (IO2) |
-| C7 | MG996R metal-gear servo, **180° positional type** + sturdy camera pan bracket | 1 | CONFIRMED (owned, 1 Nov 2026); 180° type not checked yet | not the 360° continuous-rotation version (stage 6 checks this); 55 g, so the bracket must be rigid. 180° is nominal; the usable range comes from calibration and the bracket |
-| C8 | 10 kΩ pull-down per motor-driver input: RPWM and LPWM of each module, plus EN at each module | 6 | RECOMMENDED | keeps driver inputs LOW while the S3 boots or resets |
-| C9 | Battery divider 100 kΩ / 22 kΩ (+ 100 nF at the ADC pin) | 1 | RECOMMENDED | 12.6 V → 2.27 V on GPIO1 |
-| C10 | Motor-bus divider 100 kΩ / 22 kΩ (+ 100 nF) | 1 | optional | lets the firmware see that the contactor opened |
-| C11 | 470 µF 16 V electrolytic + 100 nF at the ESP32-CAM 5 V pin; 470–1000 µF across the servo 5 V / GND at the servo connector | 2 | RECOMMENDED | ESP32-CAM brownouts and servo current spikes are common |
-| C13 | 100 µF 16 V + 100 nF across VCC / GND at each sonar | 4 sets | RECOMMENDED, not tested | proposed against the stray readings seen on the bench (suspected supply noise, not proven) |
-| C12 | Soldered veroboard/perfboard, female headers, JST-XH or Dupont crimp connectors, heat shrink, cable ties | — | RECOMMENDED | rulebook 3.1 |
-
-### Optional audio (two-way audio task, teleop only, ×1)
-
-| # | Part | Qty | Label | Notes |
-|---|---|---|---|---|
-| A1 | ESP32 DevKitC (WROOM-32) | 1 | RECOMMENDED, optional | separate so audio work can never delay the motor control loop |
-| A2 | INMP441 I²S MEMS microphone | 1 | listed in the team's notes; provisional | L/R pin to GND |
-| A3 | MAX98357A I²S class-D amplifier | 1 | listed in the team's notes; provisional | |
-| A4 | 4 Ω 3 W speaker | 1 | listed in the team's notes | |
-
-## 3.2 Reconciling the team's component notes
-
-The team's list from 25 Oct 2026 differs from the baseline in places. Nothing has been bought on
-the strength of this document; decide per line:
-
-| Team note | This repository | What to do |
+| Part | Qty | Why |
 |---|---|---|
-| "10 A dual H-bridge (1 pc)" | not used | Too small for 2 × Pololu #4744 per side (11 A stall). |
-| "BTS7960 (2 pcs)" | D2, the rover's drivers (11 Nov 2026) | Wire per §3.5. The firmware drives only this module. |
-| "25GA motor 300 rpm × 4" | Pololu #4744 | **UNKNOWN rating.** Before choosing the fuses and driver, read the motor label or datasheet for voltage, no-load current and stall current. Change D1 and this section together. |
-| "HC-SR04 (2 pcs)" | 4 | Any subset works; unfitted ones report `not_fitted`. With two, fit front-center and rear. |
-| "INMP441, MAX98357A, 4 Ω 3 W speaker" on the main ESP (flow diagram) | separate optional ESP32 board | Kept separate on purpose (no audio code on the motor controller). Moving audio onto the S3 would need a port; it is not done. |
-| "Kill switch: KCD11 mini rocker (red)" | 2-pole switch + contactor (team decision, 6 Nov 2026) | A switch is not the mushroom-head E-stop rule 1.2.1 asks for. The KCD11 itself is single-pole and rated for small AC loads, so it cannot both cut the coil and tell the S3: use a 2-pole switch DC-rated above the K1 coil current. Keep it out of the motor path. It may switch the 3 A logic branch only if its DC rating covers that. |
-| "12 V 4-inch fan" | P13 | Added, current unknown. |
+| Inline blade-fuse holder + slow-blow fuses: **10 A** (F1) and **3 A** (F2), plus spares | 2 holders | rule 3.3.1: every battery fused, as close to the pack as possible |
+| XT30 pairs (J1–J7) | 7 | rule 3.2.1: every power joint between batteries, E-stop, distribution and drivers. If a pack already has an XT30 or XT60 plug, only its mate is needed; a red JST-RCY plug does not meet the rule |
+| 3S LiPo **balance** charger | 1 | none in the list. Never charge a LiPo from a plain power supply |
+| Fire-resistant LiPo bag | 1 | rule 3.3.2: carry and charge the packs in it |
+| Resistors, 1/4 W: 10 kΩ × 6, 1 kΩ × 4, 1.8 kΩ × 4, 100 kΩ × 2, 22 kΩ × 2; and **1 kΩ 0.5 W × 1** | 19 | driver pull-downs R1–R6, sonar Echo dividers R11–R18, voltage sense R21–R24, motor-bus bleed R25 |
+| Capacitors: 470 µF 16 V × 2, 100 µF 16 V × 4, 100 nF × 7 | 13 | ESP32-CAM supply (C1, C2), servo supply (C3), sonar supplies (C11–C18), ADC filters (C21, C22) |
+| Wire: 18 AWG silicone red + black, 22 AWG red + black, 24–26 AWG in other colours | — | rule 3.2.3 colours |
+| Dupont female housings (or jumper leads), heat shrink, cable ties | — | the IBT-2 control header is male pins; rule 3.1 |
+| Camera pan bracket for the SG90 | 1 | the camera has to turn |
+| LiPo cell checker / low-voltage alarm | 1–2 | RECOMMENDED: bare LiPo packs have no BMS |
+
+**Motor data.** 25GA 300 RPM 12 V is a seller code, not one part number, and the stall current
+depends on the maker. Seller data for similar 25 mm, 370-size 12 V gearmotors runs from 1.2 A to
+5 A stall. So F1 is **provisional at 10 A** (four motors at 2.5 A each). Measure one motor stalled on
+a bench supply (T17) and set F1 just above 4 × the stall current or 3 × the four-motor running
+current, whichever is lower, but never above SW1's rating. The BTS7960 current limit (43 A typical)
+is far above any of these.
+
+**3S packs vs 12 V motors.** A full 3S pack is 12.6 V, 5 % above the motor rating. The firmware
+caps PWM duty at 12.0 V / V<sub>motor bus</sub> while the motor-bus voltage is measured, and at a
+fixed 0.95 (= 12.0 / 12.6) otherwise.
+
+**Battery care.** Bare LiPo packs have no BMS. Stop and charge at **10.5 V** (3.5 V per cell);
+never run below **9.9 V** (3.3 V per cell). The dashboard shows the motor pack as the motor-bus
+voltage, and the logic pack as the battery voltage once R21/R22 are fitted and calibrated. Charge
+both packs before every run; 850 mAh is small, so measure the run time in test T17.
+
+## 3.2 What changed on 13 Nov 2026
+
+| Earlier design | Now | Why |
+|---|---|---|
+| Pololu #4744 motors | 25GA 300 RPM 12 V | team list |
+| One 3S Li-ion pack with BMS | **two** 3S LiPo packs, 850 mAh: BT1 motors + servo, BT2 logic | team list. Split, so a motor stall can never brown out the ESP32 boards |
+| Contactor K1, ARM button, hold path, flyback diode | **removed**. SW1 cuts the motor line directly | no contactor in the list; team chose the direct switch |
+| 2-pole E-stop switch, second pole on GPIO21 | 1-pole switch; the S3 senses the **motor-bus voltage** on GPIO2 | the list's switches have 2 pins |
+| MG996R servo, 3 A servo buck | SG90 on XL4015 U7 | team list |
+| Fuses F1–F8 | F1 10 A (motor pack), F2 3 A (logic pack) | smaller motors, no contactor circuit |
+| Two generic 5 V bucks | two XL4015 | team list |
+| 1 HC-SR04 | 4 | team list |
 
 ## 3.3 Power plan
 
 ```
-                 F1 25A                 K1 contactor (≥40 A DC)
- BAT+ ──XT60──●──[====]──●───────────────o/ o───────●── MOTOR BUS ──┬─F5 15A─XT30─► IBT-2 LEFT  B+ ─► 2 left motors
- (3S, BMS)    │          │                          │               ├─F6 15A─XT30─► IBT-2 RIGHT B+ ─► 2 right motors
-              │          │                          │               └─F8 3A ─XT30─► BUCK "servo 5V" ─► MG996R red (signal from ESP32-CAM IO2)
-              │          │                          │
-              │          │   (E-stop / ARM latch, §3.4)
-              │          │
-              │          └─F3 3A──XT30──► BUCK "logic 5V" ──► S3 5V, ESP32-CAM 5V, 4× HC-SR04 VCC, audio board 5V
-              │                                └──────────► 12 V fan (P13) is on the F3 branch, before the buck
-              │
- BAT− ────────●──────────────────────────────────── common GND (star point near the drivers' B−)
+                F1 10A                  SW1 E-STOP (2-pin)
+ BT1 + ──J1──[====]────────────────────o/ o──J2──●── MOTOR BUS: 0 V, or 9.9–12.6 V
+ (3S LiPo, motor pack)                           ├──J3──► U4 BTS7960 left  B+ ─► M1, M2
+                                                 ├──J4──► U5 BTS7960 right B+ ─► M3, M4
+                                                 ├──J5──► U7 XL4015 "servo 5V" ─► SG90 red (signal from ESP32-CAM IO2)
+                                                 ├── R25 1 kΩ 0.5 W ── GND        (bleed: bus empties in about 1 s)
+                                                 └── R23 100k / R24 22k ──► S3 GPIO2 (E-stop sense)
+
+                F2 3A                   SW2 POWER (2-pin)
+ BT2 + ──J6──[====]────────────────────o/ o─────●──J7──► U6 XL4015 "logic 5V" ──► S3 5V, ESP32-CAM 5V, 4× HC-SR04,
+ (3S LiPo, logic pack)                           │                                  DevKit 5V, MAX98357A VIN
+                                                 ├──────► FAN1 12 V
+                                                 └── R21 100k / R22 22k ──► S3 GPIO1 (logic pack, optional)
+
+ BT1 −, BT2 − ──────────────────────────────────●── common GND (star point near the drivers' B−)
 ```
 
-- **One ground.** Battery −, both drivers' B−, both buck GNDs, S3, CAM, servo and sonars
-  share one ground. Run the motor-current returns straight to the star point, not through the
-  logic board.
-- **Logic stays powered when the E-stop is pressed.** The S3 keeps reporting telemetry, and the
-  dashboard shows *why* it stopped.
+- **Two packs, one ground.** BT1 − and BT2 − join at the star point. Both drivers' B−, both
+  XL4015 GNDs, the S3, the camera, the servo and the sonars share that ground. Run the motor
+  returns straight to the star point, not through the logic board.
+- **No motor current on the vero board.** The motor bus is a soldered, heat-shrunk splice of
+  18 AWG wire from J2 to J3, J4 and J5. Only the thin sense lead (R23) and the bleed resistor reach
+  the bus from the board side.
+- **Logic stays powered when the E-stop is OFF.** The S3 keeps reporting, and the dashboard shows
+  *why* it stopped. SW2 switches the whole logic side off.
 - **The servo supply is on the motor bus,** so the E-stop also stops the camera pan. Its signal
-  comes from the ESP32-CAM, which stays powered, and the S3 also tells the camera to hold the
-  pan while in E-stop.
-- **Current budget (5 V logic):** S3 about 0.35 A Wi-Fi peak, ESP32-CAM about 0.5 A peak,
-  4 × HC-SR04 about 0.06 A, audio board about 0.3 A plus the amplifier (up to about 0.7 A peak at
-  full volume). About 2 A peak in total, so the 3 A buck has margin.
-- **Servo 5 V:** an MG996R draws 0.5–0.9 A while moving and up to about 2.5 A stalled. Use a
-  buck rated ≥ 3 A continuous with 1000 µF at the servo, on a 3 A slow-blow fuse. Never power the
-  servo from the S3's or the ESP32-CAM's 5 V pin, nor from the logic buck.
+  comes from the ESP32-CAM, which stays powered, and the S3 also tells the camera to hold the pan
+  while in E-stop.
+- **XL4015 set-up:** input 8–36 V by its datasheet, so a 3S pack (9.9–12.6 V) is inside the range.
+  Set each output to 5.0 V with nothing connected (T3, T12). If your module has a second (current)
+  trimmer, leave it at its maximum.
+- **Current budget, logic pack:** S3 about 0.35 A Wi-Fi peak, ESP32-CAM about 0.5 A peak, 4 × HC-SR04
+  about 0.06 A, audio board about 0.3 A plus the amplifier (up to about 0.7 A at full volume). About
+  2 A peak at 5 V, about 1 A from the pack, plus the fan. F2 = 3 A.
+- **Wire:** BT1 to the drivers 18 AWG; drivers to motors 18–20 AWG; BT2 side and 5 V rails 22 AWG;
+  signals 24–26 AWG.
 
-## 3.4 E-stop circuit (hardware, independent of software)
+## 3.4 E-stop circuit (hardware cut, S3 latch)
 
-Single-relay self-latching circuit. The contactor holds itself on through its own output, so
-once it drops out it stays out until ARM is pressed:
+SW1 is the only path from the motor pack to the motors and the servo. The S3 cannot see the switch
+directly (it has one pole), so it watches the motor-bus voltage instead:
 
 ```
- BAT+ (after F1) ──F4 1A──[ ARM, momentary NO ]──┐
-                                                  ├──[ E-stop pole A ]─●── K1 coil (+) ──┐
- MOTOR BUS (K1 output) ──F7 1A────────────────────┘                    │                 │
-                                                          1N4007 ──────┘ cathode at (+)   │
-                                                          anode ─────────────────────────●─ GND
- S3 GPIO21 (INPUT_PULLUP) ──[ E-stop pole B ]── GND        (closed = switch ON, open/broken = E-stop)
+ BT1 + ── F1 ── SW1 E-STOP ── MOTOR BUS ── U4, U5, U7
+                                 │
+                                 ├── R25 1 kΩ 0.5 W ── GND
+                                 └── R23 100 kΩ ──●── S3 GPIO2   (12.6 V → 2.27 V)
+                                                  ├── R24 22 kΩ ── GND
+                                                  └── C22 100 nF ── GND
 ```
 
 How it behaves:
 
 | Action | Result |
 |---|---|
-| Power on | K1 open; motors and servo unpowered. The S3 boots with outputs disabled. |
-| Press **ARM** (E-stop switch ON) | coil energised → K1 closes → motor bus live → coil now held from the motor bus |
-| Switch the **E-stop OFF** | pole A opens → coil drops → K1 opens → motor bus dead (motors **and** servo). Pole B opens → S3 latches ESTOP. |
-| Switch the E-stop back ON | **nothing restarts.** K1 stays open (its hold path is dead) and the S3 stays in ESTOP. |
-| Restart | switch the E-stop ON → press ARM (power) → RESET E-STOP in the dashboard (software) → choose a mode |
-| S3 crashes, Wi-Fi drops, dashboard closes | K1 is unaffected; the E-stop still cuts power. The S3 watchdog reboots with outputs LOW. |
+| Power on: SW2 ON, SW1 OFF | logic runs; the bus is 0 V, so the S3 boots into ESTOP ("E-stop switch OFF at boot") |
+| Switch SW1 ON | the bus rises to the pack voltage. The S3 **stays in ESTOP** until RESET E-STOP in the dashboard, then a mode is chosen |
+| Switch SW1 OFF, driving or not | motors and servo lose power **in hardware** at once. The S3 reads the bus every 10 ms; below 6 V it latches ESTOP and holds the drivers' EN LOW |
+| Switch SW1 back ON | **nothing moves.** The S3 holds ESTOP and EN LOW until RESET E-STOP, which it refuses while the bus is still 0 V |
+| S3 crashes or reboots | R5 and R6 pull EN LOW, so both drivers are off. After the reboot the S3 starts disabled, and in ESTOP if SW1 is OFF |
+| Wi-Fi drops, dashboard closes | the teleop timeout stops the motors within 0.3 s; SW1 still cuts power |
 
-Check at inspection: with the motors running on the bench (wheels raised), switch the E-stop OFF and
-the wheels must stop and the motor bus must read 0 V on a multimeter.
+What this design does **not** do:
 
-**Check for re-latching.** The hold path takes its power from the motor bus. After K1 opens, the bus can stay
-charged for a moment by the driver capacitors, and by the motors acting as generators while the wheels still
-turn. If the E-stop is switched back ON in that moment, K1 could pull back in, which rule 1.2.4 forbids. Test it with
-the wheels spinning. If it re-latches, feed the hold path from BAT+ through an auxiliary NO contact on K1, or
-fit a bleed resistor across the bus (1 kΩ 1 W) and test again. Not tested yet; nothing is built.
+- **"No restart" is firmware, not hardware.** It depends on the S3 seeing the bus drop and on the
+  EN pull-downs. Rule 1.2 asks for the power cut in hardware, which SW1 does; an inspector may still
+  want the restart blocked in hardware. If so, go back to the contactor and ARM button design (PDF
+  Rev C, Sheet 3).
+- **SW1 carries all the motor current.** Its DC rating must be at least F1 (10 A at 12.6 V). AC
+  ratings do not carry over to DC. The KCD11 mini rocker in the team's earlier notes is commonly
+  sold as 3 A 250 V AC / 6 A 125 V AC with no DC rating: too small for this line. It is fine for SW2.
+- **The bench jumper.** Without R23/R24, GPIO2 floats. On the bench, tie GPIO2 to 3V3 (reads as
+  "bus present") and connect nothing that moves. **Remove it before the bus divider goes in**: left
+  in, it hides the E-stop from the S3.
+
+Fail-safe checks: a broken R23 or GPIO2 wire reads 0 V, which the S3 treats as E-stop OFF. An open
+R24 pulls GPIO2 to the bus through 100 kΩ, which still reads 0 V when the bus is off.
+
+Check at inspection: wheels raised, motors running. Switch SW1 OFF: the wheels stop, the dashboard
+shows ESTOP, the bus reads about 0 V on a meter within about 1 s. Switch it back ON: nothing moves.
 
 ## 3.5 Motor drivers and motor pairing
 
@@ -176,13 +194,13 @@ BTS7960B half-bridges, so one module drives one side's two motors in both direct
 
 | IBT-2 pin | Left module | Right module |
 |---|---|---|
-| RPWM (forward) | S3 GPIO4 + 10 kΩ to GND | S3 GPIO6 + 10 kΩ to GND |
-| LPWM (reverse) | S3 GPIO5 + 10 kΩ to GND | S3 GPIO7 + 10 kΩ to GND |
-| R_EN + L_EN, joined at the module | S3 GPIO15 + 10 kΩ to GND | S3 GPIO15 + 10 kΩ to GND |
+| RPWM (forward) | S3 GPIO4 + 10 kΩ (R1) to GND, via P5 | S3 GPIO6 + 10 kΩ (R3) to GND, via P6 |
+| LPWM (reverse) | S3 GPIO5 + 10 kΩ (R2) to GND, via P5 | S3 GPIO7 + 10 kΩ (R4) to GND, via P6 |
+| R_EN + L_EN, joined at the module | S3 GPIO15 + 10 kΩ (R5) to GND, via P5 | S3 GPIO15 + 10 kΩ (R6) to GND, via P6 |
 | R_IS, L_IS | not connected | not connected |
-| VCC (logic) | S3 **3V3** pin | S3 **3V3** pin |
-| GND (logic) | logic GND | logic GND |
-| B+ / B− | motor bus via F5 / star GND | motor bus via F6 / star GND |
+| VCC (logic) | S3 **3V3** pin, via P7 | S3 **3V3** pin, via P7 |
+| GND (logic) | logic GND, via P5 | logic GND, via P6 |
+| B+ / B− | motor bus via J3 / star GND | motor bus via J4 / star GND |
 | M+ / M− | both left motors **in parallel** | both right motors **in parallel** |
 
 - **VCC from 3.3 V, not 5 V.** The control pins go through a 74HC244 buffer powered from VCC. At
@@ -227,20 +245,26 @@ BTS7960B half-bridges, so one module drives one side's two motors in both direct
   so all distances are bumper-referenced (stage 4).
 - Most HC-SR04s trigger reliably from 3.3 V. If one does not, use the HC-SR04P (3.3–5 V) variant.
 
-## 3.7 Camera pan servo (MG996R) on the ESP32-CAM
+## 3.7 Camera pan servo (SG90) on the ESP32-CAM
 
 | From | To | Notes |
 |---|---|---|
-| ESP32-CAM **IO2** | MG996R signal (orange) | 50 Hz PWM from the camera's LEDC (`PAN_PIN`). Most MG996Rs accept a 3.3 V signal; if it jitters or ignores it, add a 74AHCT125 buffer powered from 5 V |
-| "servo 5V" buck (on the motor bus) | MG996R V+ (red) | servo power only, ≥ 3 A, with 1000 µF across V+ / GND at the servo |
-| GND | MG996R GND (brown) **and** ESP32-CAM GND | the signal needs this common ground |
+| ESP32-CAM **IO2** | SG90 signal (orange), via P9 | 50 Hz PWM from the camera's LEDC (`PAN_PIN`). Hobby servos normally accept a 3.3 V signal; if it jitters, add a 74AHCT125 buffer powered from 5 V |
+| U7 "servo 5V" (on the motor bus) | SG90 V+ (red), via P9 | 470 µF (C3) across V+ / GND at the servo |
+| GND | SG90 GND (brown) **and** ESP32-CAM GND | the signal needs this common ground |
 
+- The SG90 is light (about 1.8 kg·cm by seller data), so balance the camera on the horn and keep
+  the bracket short. It draws far less than the MG996R did; seller figures for its stall current run
+  from about 0.55 A to over 1 A, well inside U7's 5 A.
+- Some SG90s are sold as "360°" continuous-rotation servos. Those cannot hold an angle: stage 6
+  checks that yours does.
 - IO2 is the only free camera pin that neither stops the boot (IO12) nor pulses at power-up
   (IO15). It is a strapping pin, so nothing may pull it HIGH at reset; a servo signal input does not.
-  **Provisional** until stage 6 shows a normal boot with the servo connected.
+  A normal boot with a servo connected was seen on 2 Nov 2026 with the earlier MG996R; check it again
+  with the SG90 in stage 6.
 - The camera starts at home (90°), keeps a 45–135° range (`kPanMinDeg` / `kPanMaxDeg`, shared by
-  both boards) and slews at 120°/s. Calibrate the end pulses in small steps (stage 6), and check
-  that the camera ribbon cannot snag at either end before widening the range.
+  both boards) and slews at 120°/s. The end pulses are nominal (500 / 2400 µs); calibrate them in
+  small steps (stage 6), and check that the camera ribbon cannot snag at either end.
 - The S3 picks the pan mode (hold, goto, scan, track, pulse) over the camera link; scanning and
   target following run on the camera.
 
@@ -248,11 +272,11 @@ BTS7960B half-bridges, so one module drives one side's two motors in both direct
 
 | ESP32-CAM pin | To | Notes |
 |---|---|---|
-| 5V | logic 5 V buck | short, thick wires, 470 µF + 100 nF at the pin |
+| 5V | U6 logic 5 V | short, thick wires, 470 µF (C1) + 100 nF (C2) at the pin |
 | GND | common GND | |
 | GPIO13 (RX) | S3 GPIO41 (TX) | 3.3 V both sides |
 | GPIO14 (TX) | S3 GPIO42 (RX) | |
-| GPIO2 | MG996R signal (orange) | camera pan servo, see §3.7 |
+| GPIO2 | SG90 signal (orange) | camera pan servo, see §3.7 |
 | GPIO4 | — | flash LED, kept OFF by the firmware |
 | microSD slot | **leave empty** | it shares GPIO13/14 with the link |
 
@@ -261,6 +285,9 @@ GND** while resetting to enter the bootloader, or use an ESP32-CAM-MB board.
 
 ## 3.9 Optional audio board
 
+U8 is assumed to be an INMP441 (the list says "INA 441, name to verify"). Read the marking before
+wiring it.
+
 | ESP32 DevKit | Part pin |
 |---|---|
 | 3V3 | INMP441 VDD |
@@ -268,7 +295,7 @@ GND** while resetting to enter the bootloader, or use an ESP32-CAM-MB board.
 | GPIO26 | INMP441 SCK |
 | GPIO25 | INMP441 WS |
 | GPIO34 | INMP441 SD |
-| 5V (from the logic buck) | MAX98357A VIN |
+| 5V (from U6, via P13) | MAX98357A VIN |
 | GND | MAX98357A GND |
 | GPIO27 | MAX98357A BCLK |
 | GPIO32 | MAX98357A LRC |
@@ -279,25 +306,47 @@ GND** while resetting to enter the bootloader, or use an ESP32-CAM-MB board.
 
 No connection to the S3 other than common power and ground. It talks over Wi-Fi only.
 
-## 3.10 Build rules checklist
+## 3.10 Logic board and connectors
 
-- [ ] Every module sits on soldered female headers on veroboard/PCB. No breadboard anywhere.
-- [ ] Every power joint uses XT30/XT60 or Deans. No bare wire, clips or tape.
+One double-sided vero board holds U1 on the female headers, the pull-downs R1–R6, the Echo dividers
+R11–R18, R22, R24, C21, C22 and the board side of every signal cable. Each cable uses one of the
+list's 4-pin JST pairs: the 90° part on the board, the straight part on the cable. Mark pin 1 on the
+board and on every plug.
+
+| Conn | Pin 1 | Pin 2 | Pin 3 | Pin 4 | Cable goes to |
+|---|---|---|---|---|---|
+| P1 | +5V LOGIC | GPIO10 (Trig) | Echo, 5 V: R11 to GPIO11, R12 to GND | GND | US1 front-centre |
+| P2 | +5V LOGIC | GPIO12 | Echo: R13 to GPIO13, R14 to GND | GND | US2 front-left |
+| P3 | +5V LOGIC | GPIO14 | Echo: R15 to GPIO16, R16 to GND | GND | US3 front-right |
+| P4 | +5V LOGIC | GPIO17 | Echo: R17 to GPIO18, R18 to GND | GND | US4 rear |
+| P5 | GPIO4 RPWM (R1) | GPIO5 LPWM (R2) | GPIO15 EN (R5) | GND | U4 control header (Dupont housing at the module) |
+| P6 | GPIO6 RPWM (R3) | GPIO7 LPWM (R4) | GPIO15 EN (R6) | GND | U5 control header |
+| P7 | 3V3 to U4 VCC | 3V3 to U5 VCC | n.c. | n.c. | U4, U5 VCC pins |
+| P8 | +5V LOGIC | GND | GPIO41 to U2 IO13 | U2 IO14 to GPIO42 | U2, when it is not socketed on this board |
+| P9 | +5V SERVO (U7) | GND | servo signal (U2 IO2) | n.c. | SV1 SG90 |
+| P10 | U2 IO2 | GND | n.c. | n.c. | from U2 to P9 pin 3, when U2 is off this board |
+| P11 | +5V from U6 | GND | +5V from U6 | GND | U6 output (two pins each share the current) |
+| P12 | from R21 (BT2 side, after SW2) | n.c. | from R23 (motor bus) | n.c. | voltage sense leads; R21 and R23 sit at the supply end, so the leads carry only µA |
+| P13 | +5V LOGIC | GND | n.c. | n.c. | U3 audio DevKit and U9 VIN |
+
+P14 and P15 are spare. The fan and both packs never touch the board: they run on 18 to 22 AWG
+wire through XT30 connectors and the switches.
+
+## 3.11 Build rules checklist
+
+- [ ] Every module sits on soldered female headers or is screwed down. No breadboard anywhere.
+- [ ] Every power joint between batteries, E-stop, splice and drivers is XT30/XT60 or Deans (J1–J7). No bare wire, clips or tape.
 - [ ] Red = positive (voltage labelled at each junction), black = GND, other colours for signals.
 - [ ] Heat shrink on every joint, cable ties, strain relief at every connector.
 - [ ] Motor wires routed away from sonar, servo and camera-link wiring.
-- [ ] E-stop rigidly mounted, reachable from outside without crossing moving parts.
-- [ ] Battery fused at the battery, secured against vibration, in a fire-resistant bag when charging.
+- [ ] SW1 labelled E-STOP, rigidly mounted, reachable from outside without crossing moving parts; SW2 labelled POWER.
+- [ ] Both packs fused (F1, F2) at the pack, strapped down against vibration, in the fire-resistant bag when charging.
+- [ ] The GPIO2 bench jumper is removed once R23/R24 are fitted.
 - [ ] Schematic drawn with every pin labelled, committed to the repository with the pin map.
 
-## 3.11 Shopping list (beyond what the team already owns)
+## 3.12 What to buy
 
-3 × HC-SR04 · rigid pan bracket · 2 × BTS7960 IBT-2 modules (if not owned
-yet) · 4 × Pololu #4744 (or #4754 with encoders; or confirm the owned 25GA motors' rating) ·
-1 × 2-pole ON-OFF E-stop switch, DC-rated above the K1 coil current · 1 × 12 V-coil contactor ≥ 40 A DC · 1 × green NO
-push button · fuse holders and 25/15/15/3/3/1/1 A blade fuses · XT60 × 2 pairs, XT30 × 4 pairs ·
-2 × 5 V buck converters (logic and servo, each ≥ 3 A) · 3S Li-ion pack with ≥ 25 A BMS + 12.6 V charger +
-fire-resistant bag · resistors (1 k × 4, 1.8 k × 4, 10 k × 6, 100 k × 2, 22 k × 2) · capacitors
-(470 µF 16 V × 1, 1000 µF 16 V × 1, 100 µF 16 V × 4, 100 nF × 7) · 1N4007 × 1 · wire per P12 · veroboard, headers,
-crimp connectors · 3.3 V USB-UART adapter or ESP32-CAM-MB. Optional audio: ESP32 DevKitC,
-INMP441, MAX98357A, 4 Ω 3 W speaker.
+Everything in the "Must add" table in §3.1: fuse holders and the 10 A and 3 A fuses, 7 XT30 pairs, a
+3S LiPo balance charger, a fire-resistant LiPo bag, the resistors and capacitors listed there,
+wire, Dupont housings, heat shrink, a pan bracket for the SG90, and (recommended) a LiPo cell
+checker. Before buying a replacement for SW1, read the rating printed on the switches you have.

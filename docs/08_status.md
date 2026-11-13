@@ -74,6 +74,13 @@ Fixes made while completing the project:
 - **Open: the S3 restarted itself once (2 Nov 2026), reset reason `int_wdt`.** It happened between sonar and QR tests, while idle, with no serial log running, so there is no backtrace and the cause is unknown. The only GPIO interrupt on the S3 is the sonar Echo pin, so a noisy or loose Echo wire was the first suspect, but wiggling and unplugging the Echo, VCC and GND wires with the serial log running did not reproduce it. About 20 minutes of serial logging on the fixed firmware showed no restart, and that log ended when the boards were unplugged from USB. Still unexplained. Keep the serial log on during the first motor tests.
 - **Found and fixed: heavy web traffic crashed the S3 (2 Nov 2026).** Three extra dashboards plus nonstop API requests, with no wires touched, restarted it in 18 and 39 s (reset `panic`). The backtrace showed a failed `new` in `AsyncWebSocket::textAll` aborting the firmware. Telemetry frames can queue at about 3 KB each, up to 32 by default, so the WebSocket queue is now limited to 8. The same load then ran 120 s with no restart: 3159 requests served, lowest sampled free heap 95 KB (36–57 KB before), E-stop answered in 96 ms under load, telemetry back to 76 ms afterwards. Added as a safety net, not exercised in that test: below 64 KB free heap requests get a 503 (never the E-stop), and telemetry frames are skipped when the largest free block is under 16 KB. This crash has a different reset reason, so it does not explain the `int_wdt` restart above.
 - **Electrical schematic and build guide issued (2 Nov 2026):** [Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf](Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf) has the master schematic, seven detail sheets, wire schedule, pin maps, BOM, calculations and a commissioning test sheet. It is a design document: the power side has not been built. Compared with `03_electrical.md` as first written, it adds the J2 XT60, capacitors at each sonar, and the K1 re-latch check. Stops with an error if the pins in the firmware headers change.
+- **Real parts list (13 Nov 2026).** Two 3S 850 mAh LiPo packs (motor pack BT1, logic pack BT2),
+  25GA 300 RPM 12 V motors, SG90 pan servo, two XL4015 bucks, four HC-SR04 and two 2-pin ON/OFF
+  switches. The contactor, ARM button and hold path are gone: SW1 cuts the motor line directly, and
+  the S3 senses the E-stop as the motor-bus voltage on GPIO2 (`ESTOP_FROM_MOTOR_BUS`), read every
+  10 ms. It latches ESTOP when the bus drops and refuses `reset` until the bus is back, so switching
+  SW1 back ON restarts nothing. This "no restart" is firmware plus the EN pull-downs, not hardware.
+  Built and uploaded; not tested with a switch, a divider or motors yet. Electrical PDF Rev D.
 - **E-stop changed to a simple switch (team decision, 6 Nov 2026).** SW1 is now a 2-pole ON-OFF switch: pole A cuts the contactor coil, pole B tells the S3 on GPIO21. The firmware is unchanged, since a closed pole still reads as released. **This does not meet rule 1.2.1**, which asks for a red mushroom-head button. The PDF ([Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf](Eco_Eco_Electrical_Schematic_and_Build_Guide.pdf), Rev B) marks it NOT MET. Get the organisers' approval in writing before inspection.
 - **Camera wireless updates (OTA):** partition table `min_spiffs.csv` (two 1.9 MB app slots),
   ArduinoOTA on port 3232 with `CAM_OTA_PASSWORD` from `src/cam/secrets.h`, and
@@ -146,17 +153,18 @@ Fill this in from the checklist:
 | Camera sensor (RHYX M21-45) | **resolved**: GC2145, PID 0x2145, RGB565 at 320×240 | — |
 | QR density the camera can read | at 320×240, version 1 (21×21) codes decode well at ~half the picture height (≈ 8 px per module); a version-4 (33×33) code from a phone app was found but not decodable (≈ 5 px per module). Version 2 is marginal | the referee's actual code; if it is denser than version 1–2, add a higher-resolution QR mode |
 | RGB565 byte order | high byte first; likely right (a flat scene came out smooth, not speckled) | `/gray.jpg` of a scene with detail |
-| Motors | Pololu #4744 baseline; the team's notes list "25GA 300 rpm" | label/datasheet of the motors actually fitted |
+| Motors | **decided** (13 Nov 2026): 4 × 25GA 300 RPM, 12 V. Stall current unknown; F1 provisional 10 A | measure stall on a bench supply (stage 8), then set F1 |
 | Motor drivers | **decided** (11 Nov 2026): 2 × BTS7960 (IBT-2), one per side, VCC from 3.3 V. The firmware drives only this module; it builds but has not driven a motor yet | stage 8: VCC 3.3 V and inputs 0 V while disarmed, then direction and heat at low duty |
-| Battery and charger | 3S Li-ion with BMS ≥ 25 A (recommended, not chosen) | purchase |
-| Sonar count | 1 owned (front-center fitted in config), 4 planned | purchase; enable each in `SONAR_FITTED` |
+| Batteries and charger | **decided** (13 Nov 2026): 2 × 3S LiPo 850 mAh, BT1 motors + servo, BT2 logic. No charger or bag in the list yet | buy a 3S balance charger and a LiPo bag; check each pack's plug and C rating |
+| Sonar count | 4 in the team list (13 Nov 2026); front-center wired and fitted in config | wire each, then enable it in `SONAR_FITTED` (stage 4) |
 | Pan servo on ESP32-CAM IO2 | **resolved** (2 Nov 2026): boots normally with the servo connected | — |
-| MG996R type and signal | **resolved** (2 Nov 2026): moves and holds, so 180° positional; works on the 3.3 V signal | — |
+| Pan servo type | SG90 (team list, 13 Nov 2026). The earlier MG996R moved and held on the 3.3 V signal (2 Nov 2026); the SG90 is not tested | stage 6 with the SG90 |
 | Servo pulse endpoints | 500 / 2400 µs nominal (`src/cam/config_cam.h`), range 45–135° | stage 6 calibration |
 | Pan direction vs image | `MOTION_PAN_DIRECTION = +1` (`src/cam/config_cam.h`) | stage 7 step 5 |
 | Proximity controller gains | `PROX_MIN_DUTY 0.12`, `PROX_GAIN_PER_MM 0.0015` | floor tuning, stage 13 |
 | INMP441 slot | left (`MIC_READ_RIGHT_SLOT = false`) | stage 9 level check |
-| E-stop and contactor parts | recommended only | purchase + stage 2 |
+| E-stop switch rating | SW1 (2-pin ON/OFF from the list) carries all motor current; its rating is unknown | read the print; it must be DC-rated ≥ F1 (10 A) |
+| Missing parts | fuses, XT30s, resistors, capacitors, charger, LiPo bag, pan bracket (03 §3.1 "Must add") | purchase |
 | Arena network | unknown until the technical briefing | set `WIFI_STA_*` in all `secrets.h`, `WIFI_SOFTAP_FALLBACK = false` |
 
 ## 8.4 Known limits (by design)

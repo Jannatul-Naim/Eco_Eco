@@ -58,7 +58,7 @@ text.c-a { fill: #8F6B00; font-weight: 600; }
       <text class="t-s" x="444" y="404">runs the servo</text>
 
       <rect class="box" x="800" y="355" width="170" height="60" rx="5"/>
-      <text class="t-h" x="885" y="391" text-anchor="middle">MG996R</text>
+      <text class="t-h" x="885" y="391" text-anchor="middle">SG90</text>
 
       <rect class="box" x="30" y="430" width="190" height="60" rx="5"/>
       <text class="t-h" x="44" y="456">ESP32 DevKit</text>

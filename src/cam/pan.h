@@ -1,4 +1,4 @@
-// Camera-pan servo (MG996R; any 50 Hz positional hobby servo), driven from
+// Camera-pan servo (SG90; any 50 Hz positional hobby servo), driven from
 // PAN_PIN by the LEDC peripheral. The S3 picks the mode over the link; scanning
 // and target following run here, next to the motion detector, so a recentring
 // move needs no round trip.

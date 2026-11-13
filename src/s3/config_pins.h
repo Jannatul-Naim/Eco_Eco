@@ -18,8 +18,8 @@
 #define ROVER_PINMAP_STATUS "PROVISIONAL"
 
 // ---- Analog sensing (ADC1 only: ADC2 is unusable while Wi-Fi runs)
-constexpr int PIN_BATT_ADC = 1;       // battery divider (100k / 22k), before the contactor
-constexpr int PIN_MOTOR_BUS_ADC = 2;  // motor-bus divider (100k / 22k), after the contactor
+constexpr int PIN_BATT_ADC = 1;       // logic pack BT2 divider (100k / 22k)
+constexpr int PIN_MOTOR_BUS_ADC = 2;  // motor bus after the E-stop switch (100k / 22k): E-stop sense
 
 // ---- Motor drivers: one BTS7960 (IBT-2) module per side, two motors in parallel.
 // RPWM = forward duty, LPWM = reverse duty. Every pin has a 10k pull-down.
@@ -41,7 +41,7 @@ constexpr int PIN_CAM_UART_RX = 42;  // S3 RX <- CAM GPIO14 (CAM TX)
 // ---- Hardware E-stop sense: second pole of the E-stop switch between
 // this pin and GND, internal pull-up. Closed (LOW) = released.
 // Open, unplugged or broken wire (HIGH) = treated as PRESSED (fail-safe).
-constexpr int PIN_ESTOP_SENSE = 21;
+constexpr int PIN_ESTOP_SENSE = 21;  // only with a 2-pole E-stop switch (ESTOP_SENSE_FITTED)
 
 // Spare, believed safe on DevKitC-1-style boards: 8, 9 (the old PCA9685 I2C
 // pins; the pan servo now runs on the ESP32-CAM), 39, 40.

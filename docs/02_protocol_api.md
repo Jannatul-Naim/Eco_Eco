@@ -15,7 +15,7 @@ preflights are answered, so a dashboard served from `http://localhost` can call 
 | POST | `/api/mode` | `{"mode":"teleop"\|"auto"\|"idle"}` + optional `"mission":"traverse"\|"proximity"\|"qr_ping"\|"motion"` | `200` changed, `409` refused (E-stop, safe stop, mission running) |
 | POST | `/api/drive` | `{"left":-1..1,"right":-1..1}` | `200` accepted, **`409` "drive rejected: AUTO mode active"** in AUTO, `409` when not in TELEOP |
 | POST | `/api/estop` | `{}` | always `200`: outputs cut at once, latch on the next 10 ms tick |
-| POST | `/api/estop/reset` | `{}` | `200` → IDLE; `409` while the hardware button is still pressed |
+| POST | `/api/estop/reset` | `{}` | `200` → IDLE; `409` while the E-stop switch is still OFF (no motor-bus voltage) |
 | GET | `/api/camera/stream` | — | `302` redirect to `http://<cam-ip>:81/stream` (MJPEG) |
 | WS | `/ws` | see §2.2 | telemetry every 75 ms, events, acks |
 
@@ -46,10 +46,10 @@ does.
   "mode": "teleop", "mode_changed_ms": 98000, "mission": "proximity",
   "state": "TELEOP", "state_changed_ms": 98000,
   "detail": "teleoperation (http); waiting for drive commands", "controls_locked": false,
-  "estop": {"active": false, "hw_pressed": false, "hw_sense": "released",
+  "estop": {"active": false, "hw_pressed": false, "hw_sense": "motor_bus",
             "source": "none", "reset_allowed": false},
   "battery": {"wired": false, "v": null, "pct": null, "low": null},
-  "motor_bus": {"wired": false, "v": null, "present": null},
+  "motor_bus": {"wired": true, "v": 12.31, "present": true},
   "motors": {"armed": true, "left": 0.22, "right": -0.1, "driver": "BTS7960", "teleop_max": 0.6},
   "pinmap": "PROVISIONAL", "free_heap": 201234
 }

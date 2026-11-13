@@ -417,6 +417,7 @@ void webBegin(bool filesystemOk) {
     doc["servo_soft_min"] = boardlink::kPanMinDeg;
     doc["servo_soft_max"] = boardlink::kPanMaxDeg;
     doc["estop_sense_fitted"] = ESTOP_SENSE_FITTED;
+    doc["estop_from_motor_bus"] = ESTOP_FROM_MOTOR_BUS;
     doc["battery_sense_fitted"] = BATTERY_SENSE_FITTED;
     doc["lane_end_sensor_fitted"] = LANE_END_SENSOR_FITTED;
     doc["cam_stream_port"] = CAM_STREAM_PORT;

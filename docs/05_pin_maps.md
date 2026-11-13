@@ -18,8 +18,8 @@ camera link.
 
 | GPIO | Function | Direction | Connects to | Notes |
 |---|---|---|---|---|
-| 1 | `PIN_BATT_ADC` | in (ADC1) | battery divider 100 k / 22 k, before the contactor | optional; `BATTERY_SENSE_FITTED` |
-| 2 | `PIN_MOTOR_BUS_ADC` | in (ADC1) | motor-bus divider 100 k / 22 k, after the contactor | optional; `MOTOR_BUS_SENSE_FITTED` |
+| 1 | `PIN_BATT_ADC` | in (ADC1) | logic pack BT2 divider 100 k / 22 k, after SW2 | optional; `BATTERY_SENSE_FITTED` |
+| 2 | `PIN_MOTOR_BUS_ADC` | in (ADC1) | motor-bus divider 100 k / 22 k, after the E-stop switch SW1 | **required**: this is the E-stop sense (`ESTOP_FROM_MOTOR_BUS`). Bench only: jumper to 3V3 |
 | 4 | `PIN_LEFT_RPWM` | out PWM | left BTS7960 **RPWM** (forward) | 10 kΩ to GND |
 | 5 | `PIN_LEFT_LPWM` | out PWM | left BTS7960 **LPWM** (reverse) | 10 kΩ to GND |
 | 6 | `PIN_RIGHT_RPWM` | out PWM | right BTS7960 **RPWM** (forward) | 10 kΩ to GND |
@@ -33,7 +33,7 @@ camera link.
 | 16 | sonar 2 ECHO | in | front_right Echo via divider | |
 | 17 | sonar 3 TRIG | out | rear Trig | |
 | 18 | sonar 3 ECHO | in | rear Echo via divider | |
-| 21 | `PIN_ESTOP_SENSE` | in, pull-up | E-stop switch pole B → GND | LOW = switch ON (run), HIGH/open = OFF or wire broken |
+| 21 | `PIN_ESTOP_SENSE` | in, pull-up | not used: the E-stop switch has one pole | only with a 2-pole switch (`ESTOP_SENSE_FITTED`); then LOW = switch ON |
 | 41 | `PIN_CAM_UART_TX` | out | ESP32-CAM GPIO13 (RX) | 115200 8N1 |
 | 42 | `PIN_CAM_UART_RX` | in | ESP32-CAM GPIO14 (TX) | |
 | 8, 9, 39, 40 | spare | — | — | believed safe on DevKitC-1-style boards (8/9 were the PCA9685 I²C pins) |
@@ -55,7 +55,7 @@ occupies GPIO33–37, which this map already avoids. The build does not enable P
 
 ## 5.2 Camera pan servo
 
-The pan servo (MG996R) is wired to the ESP32-CAM (IO2), not to the S3, and the S3 has no I²C bus. See
+The pan servo (SG90) is wired to the ESP32-CAM (IO2), not to the S3, and the S3 has no I²C bus. See
 §5.3 and [03_electrical.md](03_electrical.md) §3.7.
 
 ## 5.3 ESP32-CAM (AI-Thinker layout, **provisional**)
@@ -70,7 +70,7 @@ MAC 1c:c3:ab:e0:4b:14, programmed through an FTDI FT232R adapter with no reset l
 | 26 / 27 | camera SIOD / SIOC (SCCB) |
 | 35, 34, 39, 36, 21, 19, 18, 5 | camera D7 … D0 |
 | 25 / 23 / 22 | VSYNC / HREF / PCLK |
-| 2 | **pan servo signal, MG996R** (`PAN_PIN`, LEDC 50 Hz; provisional, strapping pin) |
+| 2 | **pan servo signal, SG90** (`PAN_PIN`, LEDC 50 Hz; provisional, strapping pin) |
 | 4 | flash LED (kept OFF) |
 | 13 | **link RX** ← S3 GPIO41 |
 | 14 | **link TX** → S3 GPIO42 |

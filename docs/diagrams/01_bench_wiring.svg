@@ -38,8 +38,8 @@ text.c-a { fill: #8F6B00; font-weight: 600; }
       <text class="t-p" x="188" y="169" text-anchor="end">42</text>
       <text class="t-p" x="188" y="244" text-anchor="end">10</text>
       <text class="t-p" x="188" y="279" text-anchor="end">11</text>
-      <text class="t-p" x="188" y="344" text-anchor="end">21</text>
-      <text class="t-p" x="188" y="379" text-anchor="end">GND</text>
+      <text class="t-p" x="188" y="344" text-anchor="end">2</text>
+      <text class="t-p" x="188" y="379" text-anchor="end">3V3</text>
       <text class="t-s" x="44" y="362">bench jumper</text>
       <text class="t-p" x="115" y="408" text-anchor="middle">GND</text>
       <path class="wire w-a" d="M200 340H220V375H200"/>
@@ -108,7 +108,7 @@ text.c-a { fill: #8F6B00; font-weight: 600; }
 
       <!-- servo -->
       <rect class="box-new" x="790" y="60" width="180" height="170" rx="5"/>
-      <text class="t-h" x="804" y="88">MG996R</text>
+      <text class="t-h" x="804" y="88">SG90</text>
       <text class="t-s" x="804" y="106">180° positional type</text>
       <text class="t-p" x="802" y="134">orange signal</text>
       <text class="t-p" x="802" y="169">red V+</text>
@@ -131,7 +131,7 @@ text.c-a { fill: #8F6B00; font-weight: 600; }
       <text class="t-p" x="802" y="364">−</text>
       <text class="t-p" x="802" y="399">+</text>
       <text class="t-h" x="822" y="352">5 V supply</text>
-      <text class="t-s" x="822" y="371">at least 3 A</text>
+      <text class="t-s" x="822" y="371">at least 1 A</text>
       <text class="t-s" x="822" y="388">never from USB or a board</text>
       <text class="t-p" x="880" y="420" text-anchor="middle">−</text>
 

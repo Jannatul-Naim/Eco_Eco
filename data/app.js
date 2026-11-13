@@ -312,7 +312,7 @@ function render(st, se) {
   // power + E-stop
   put('esActive', es.active ? 'ACTIVE' : 'released', es.active ? 'badc' : 'good');
   put('esSource', es.source);
-  put('esHw', es.hw_sense === 'not_fitted' ? 'sense wire not fitted' : es.hw_pressed ? 'PRESSED' : 'released',
+  put('esHw', es.hw_sense === 'not_fitted' ? 'sense wire not fitted' : es.hw_pressed ? 'switch OFF' : 'switch ON',
     es.hw_pressed ? 'badc' : '');
   const b = st.battery;
   put('batt', !b.wired ? 'not wired' : b.v == null ? 'no reading' : `${b.v.toFixed(2)} V${b.pct != null ? ` · ${b.pct} %` : ''}${b.low ? ' · LOW' : ''}`,

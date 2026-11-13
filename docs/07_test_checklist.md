@@ -10,13 +10,13 @@ your name and the actual value. Build success is not a test result. Stage number
 | 0.2 | Build | `tools/pio.sh test -e native` | 6/6 passed | | |
 | 1.1 | S3 USB boot, motor power **disconnected** | header silkscreen matches 05_pin_maps §5.1 | every GPIO used exists with that label | | |
 | 1.2 | | boot banner | chip ESP32-S3, outputs DISABLED | | |
-| 1.3 | | E-stop sense not wired | boots into ESTOP (fail-safe) | | |
+| 1.3 | | GPIO2 tied to GND (bus 0 V) | boots into ESTOP (fail-safe) | | |
 | 1.4 | | dashboard file system | dashboard loads, no "files not uploaded" page | | |
-| 2.1 | E-stop | power-on | motor bus 0 V until ARM | V = | |
-| 2.2 | | ARM | motor bus = battery V | V = | |
-| 2.3 | | switch E-stop OFF | motor bus 0 V | V = | |
-| 2.4 | | switch E-stop back ON | motor bus **stays** 0 V | V = | |
-| 2.5 | | S3 sense | ESTOP latched on OFF; `reset` refused while OFF, accepted after ON | | |
+| 2.1 | E-stop | SW2 ON, SW1 OFF | motor bus 0 V; S3 in ESTOP | V = | |
+| 2.2 | | SW1 ON | motor bus = BT1 V; S3 **stays** in ESTOP until `reset` | V = | |
+| 2.3 | | switch E-stop OFF | motor bus about 0 V within 1 s; ESTOP latched | V = | |
+| 2.4 | | switch E-stop back ON | no motion; ESTOP held until `reset` | | |
+| 2.5 | | S3 sense | `reset` refused while SW1 OFF, accepted after ON; unplugged sense lead gives ESTOP | | |
 | 3.1 | Wi-Fi + dashboard | telemetry median | ≤ 100 ms | ms = | |
 | 3.2 | | battery reading (if fitted) | within 0.1 V of multimeter after calibration | | |
 | 4.1 | Sonar front-center | 100 / 200 / 500 mm | each within ± 10 mm | | |
@@ -28,7 +28,7 @@ your name and the actual value. Build success is not a test result. Stage number
 | 5.1 | Camera | boot | camera OK, sensor PID recorded | PID = | |
 | 5.2 | | UART link | S3 shows link `ok`, `rx_bad` not climbing | | |
 | 5.3 | | stream in dashboard | live picture, fps badge | fps = | |
-| 6.1 | MG996R on ESP32-CAM IO2, motors disconnected | camera boots with the servo connected; `pulse 1500` then `pulse 1700` | no boot failure, no hard twitch; servo **holds** a position (180° type, not 360° continuous) | | |
+| 6.1 | SG90 on ESP32-CAM IO2, motors disconnected | camera boots with the servo connected; `pulse 1500` then `pulse 1700` | no boot failure, no hard twitch; servo **holds** a position (180° type, not 360° continuous) | | |
 | 6.2 | | end pulses found without hitting stops | pulses noted | µs = | |
 | 6.3 | | range with camera fitted | cable never snags | ° = | |
 | 7.1 | Camera tasks | `/gray.jpg` of a detailed scene | correct grey image (byte order OK) | | |

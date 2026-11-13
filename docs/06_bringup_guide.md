@@ -102,11 +102,14 @@ not connected to drivers. Nothing connected to the S3 except the USB cable.
 - a banner with `URRT rover main controller  s3-main 0.1.0`, the chip model (`ESP32-S3`), core
   count, CPU MHz, the MAC (as esptool prints it) and `PSRAM not enabled in this build` (the S3 does
   not use PSRAM even if the module has some)
-- `pin map: PROVISIONAL`, `motor driver: BTS7960 | E-stop sense: fitted | battery sense: not fitted`
+- `pin map: PROVISIONAL`, `motor driver: BTS7960 | E-stop sense: motor bus (GPIO2) | battery sense: not fitted`
 - `sonars fitted: FC=1 FL=0 FR=0 REAR=0`
 - `motor outputs start DISABLED`
-- an event `BOOT -> ESTOP: E-stop pressed (or sense wire open) at boot`. **This is correct**:
-  GPIO21 is not wired yet, and an open sense wire counts as pressed (fail-safe).
+- usually an event `BOOT -> ESTOP: E-stop switch OFF at boot: no motor-bus voltage`. **This is
+  correct**: the S3 sees the E-stop through the motor-bus divider on GPIO2, which is not wired yet.
+  Unwired, GPIO2 floats, so the result can vary. For bench work with nothing that moves connected,
+  tie **GPIO2 to 3V3** (reads as "bus present") and type `reset`. Remove that jumper before R23/R24
+  go in.
 - a warning that the rear sonar is not fitted, then Wi-Fi: with `WIFI_STA_SSID` set, an event
   `Wi-Fi STA <ssid> ip <address>`; otherwise (or if the join fails) the bench AP `URRT-ROVER`
 
@@ -115,21 +118,24 @@ Type `status` and press Enter, then `sonar`. With nothing wired the front-center
 
 **Send back:** the output of `info`, `events` and `status`.
 
-## Stage 2: hardwired E-stop (motors still disconnected)
+## Stage 2: E-stop switch and motor-bus sense (motors still disconnected)
 
-Build the circuit in [03_electrical.md](03_electrical.md) §3.4 on veroboard: E-stop switch pole A in
-the contactor coil path, ARM button, hold path, flyback diode, pole B to S3 GPIO21. Leave the
-driver branch fuses **F5/F6 out** and the drivers disconnected.
+Build the motor side of [03_electrical.md](03_electrical.md) §3.3–3.4: BT1, F1, SW1 (E-STOP), J2, the
+bus splice, the bleed resistor R25, and R23/R24/C22 to GPIO2. **Remove the GPIO2 bench jumper first.**
+Leave J3, J4 and J5 unplugged, so the drivers and the servo buck are not connected.
 
-1. Battery in, E-stop switch ON. Measure the motor bus: **0 V** (contactor open at power-on).
-2. Press ARM: the contactor clicks and the motor bus reads the battery voltage.
-3. Switch the E-stop OFF: the motor bus drops to **0 V**.
-4. Switch it back ON: the motor bus **stays at 0 V**.
-5. On the S3 console, with the E-stop switch ON, type `reset`. Expected: `OK (200): E-stop reset; mode idle`.
-   Switch it OFF: the event `-> ESTOP: hardware E-stop pressed (or sense wire open)` appears.
-   Type `reset` while it is OFF: `REJECTED (409): hardware E-stop still pressed ...`.
+1. SW2 ON (logic), SW1 OFF. Meter the motor bus: **0 V**. The S3 shows ESTOP
+   (`E-stop switch OFF ...`).
+2. SW1 ON: the bus reads the BT1 voltage. The S3 **stays in ESTOP**. On the console, `status`
+   shows the bus voltage; compare it with the meter.
+3. Type `reset`. Expected: `OK (200): E-stop reset; mode idle`.
+4. SW1 OFF: the event `-> ESTOP: E-stop switch OFF: no motor-bus voltage` appears, and the bus falls
+   to about 0 V within about 1 s (R25). Type `reset` while it is OFF:
+   `REJECTED (409): E-stop switch still OFF: no motor-bus voltage`.
+5. SW1 back ON: the S3 still shows ESTOP; nothing else changes until `reset`.
+6. Unplug the GPIO2 sense lead (P12) with SW1 ON: the S3 must enter ESTOP.
 
-**Send back:** the four multimeter readings and the console lines from step 5.
+**Send back:** the meter readings, the console lines from steps 3–5, and step 6.
 
 ## Stage 3: Wi-Fi, dashboard and voltage sensing
 
@@ -141,9 +147,10 @@ driver branch fuses **F5/F6 out** and the drivers disconnected.
    On Linux, `getent hosts urrt-rover.local` prints the address. The network must be 2.4 GHz.
    For competition builds set `WIFI_SOFTAP_FALLBACK = false` in
    `src/s3/config_network.h` (rule 1.3.1: no unauthorised transmitters).
-3. Optional, recommended: battery divider (100 k / 22 k) on GPIO1. Set `BATTERY_SENSE_FITTED = true`,
-   re-upload, compare `status` with a multimeter at the battery, and set
-   `BATTERY_CAL_GAIN = multimeter / reported`. Repeat for the motor bus on GPIO2 if fitted.
+3. Optional, recommended: logic-pack divider (100 k / 22 k) on GPIO1, after SW2. Set
+   `BATTERY_SENSE_FITTED = true`, re-upload, compare `status` with a multimeter at BT2, and set
+   `BATTERY_CAL_GAIN = multimeter / reported`. Do the same for the motor bus on GPIO2 with
+   `MOTOR_BUS_CAL_GAIN` (that divider is already required for the E-stop).
 
 **Send back:** a dashboard screenshot and, if fitted, the multimeter vs reported voltages.
 
@@ -231,22 +238,21 @@ press RST before an upload, then press RST alone to run the new firmware.
 
 **Send back:** the camera boot log and the S3 `events` after wiring.
 
-## Stage 6: MG996R pan servo on the ESP32-CAM (motors disconnected)
+## Stage 6: SG90 pan servo on the ESP32-CAM (motors disconnected)
 
 Wiring ([03_electrical.md](03_electrical.md) §3.7): servo **signal (orange) → ESP32-CAM IO2**,
-servo **red → "servo 5 V" buck**, servo **brown → GND**, and that GND tied to the ESP32-CAM GND.
-On the bench a separate 5 V supply rated **≥ 3 A** can stand in for the buck (an MG996R stalls at
-about 2.5 A). **Never power the servo from the ESP32-CAM's or the DevKit's 5V/VIN pin:** a stalled
-MG996R browns the boards out. **Detach the camera
-from the bracket for the first test.**
+servo **red → U7 "servo 5 V"**, servo **brown → GND**, and that GND tied to the ESP32-CAM GND.
+On the bench a separate 5 V supply rated **≥ 1 A** can stand in for U7. **Never power the servo
+from the ESP32-CAM's or the DevKit's 5V/VIN pin:** a stalled servo browns the boards out. **Detach
+the camera from the bracket for the first test.** The earlier MG996R passed steps 1–2 on 2 Nov
+2026; repeat them with the SG90.
 
 1. Reset the camera with the servo connected. It must boot normally and the servo should go to
    about mid-travel (home 90°) once. If the board no longer boots or the servo twitches hard at
    power-up, stop and report it: IO2 is a strapping pin.
 2. In IDLE on the S3 console, type `pulse 1500`. The servo should sit at about mid-travel. Then
-   `pulse 1700`: it should move a little and **hold**. If it keeps turning, it is the 360°
-   continuous-rotation version of the MG996R, which cannot hold an angle: stop and get the 180°
-   type.
+   `pulse 1700`: it should move a little and **hold**. If it keeps turning, it is a "360°"
+   continuous-rotation SG90, which cannot hold an angle: stop and get the 180° type.
 3. Step outward slowly: `pulse 1400`, `pulse 1300` … and `pulse 1600`, `pulse 1700` … Stop
    **before** the horn hits a mechanical stop or the servo buzzes against it. Note the last good
    pulse at each end. The firmware never goes beyond 500–2500 µs.
@@ -285,9 +291,10 @@ from the bracket for the first test.**
 the E-stop for the whole stage.
 
 1. Check each motor alone on a bench supply (or the driver at low duty) for direction, then
-   wire the pairs per [03_electrical.md](03_electrical.md) §3.5. Before F5/F6 go in, with the S3
-   running and motors disarmed, meter each BTS7960 module: VCC **3.3 V**, RPWM, LPWM and EN
-   **0 V**. Insert F5/F6. Press ARM.
+   wire the pairs per [03_electrical.md](03_electrical.md) §3.5. Measure one motor's stall current
+   on a bench supply (hold the shaft for at most 2 s) and set F1 as §3.1 says. Before J3/J4 are
+   plugged in, with the S3 running and motors disarmed, meter each BTS7960 module: VCC **3.3 V**,
+   RPWM, LPWM and EN **0 V**. Plug in J3/J4, switch SW1 ON, then `reset`.
 2. Console:
 
    ```
@@ -300,8 +307,8 @@ the E-stop for the whole stage.
 3. `drive 0.2 -0.2 800`: the left side forward, the right side backward (spin right).
 4. `drive -0.2 -0.2 800` with no rear sonar fitted: **no** backward motion, and the event
    `reverse blocked: rear sonar not fitted`.
-5. Start `drive 0.3 0.3 3000` and press the E-stop mid-run: the wheels stop at once and the S3
-   enters ESTOP.
+5. Start `drive 0.3 0.3 3000` and switch the E-stop OFF mid-run: the wheels stop at once and the S3
+   enters ESTOP. Switch it back ON: nothing moves until `reset`.
 6. Teleop timeout: from the dashboard, hold ▲ and then switch the laptop's Wi-Fi off. The
    wheels stop within about 0.3 s.
 7. After 1 minute at `0.3`, touch-check the drivers and motors for heat.
@@ -369,7 +376,7 @@ Declare each mission's purpose before starting, as you would to a referee.
 
 With the wheels raised, during an AUTO mission:
 
-- [ ] Press the E-stop: everything stops; releasing it restarts nothing.
+- [ ] Switch the E-stop OFF: everything stops; switching it back ON restarts nothing.
 - [ ] Unplug the camera UART during QR or motion: `SAFE_STOP: camera link lost ...`.
 - [ ] Unplug the front sonar Echo during traverse or proximity: `SAFE_STOP: ... stale or faulty`.
 - [ ] Close the dashboard: the mission continues (it is autonomous), and the E-stop still works.
