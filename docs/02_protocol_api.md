@@ -6,6 +6,20 @@ Every response is JSON with `"ok": true|false`. Errors carry `"error"`; command 
 `"message"` plus the resulting `mode`, `state` and `mission`. CORS is open (`*`) and `OPTIONS`
 preflights are answered, so a dashboard served from `http://localhost` can call the rover.
 
+**Login.** With `DASHBOARD_PASSWORD` set in `src/s3/secrets.h`, every `/api/*` call and the `/ws`
+socket need a token, except `POST /api/estop` (anyone may stop the rover), `POST /api/login` and
+`GET /api/auth`. Send it as `Authorization: Bearer <token>`, or as `?token=<token>` where a header
+cannot be set (WebSocket, plain links). Without it the reply is `401 {"ok":false,"error":"login
+required"}`. The rover keeps the newest 4 tokens in RAM until logout or restart. With the password
+empty the login is off and the boot log says so. Plain HTTP: this keeps casual users on a shared
+network out, it does not protect against someone sniffing the Wi-Fi.
+
+| Method | Path | Body | Result |
+|---|---|---|---|
+| GET | `/api/auth` | — | `{"login_required":bool,"authorized":bool}` for the caller's token |
+| POST | `/api/login` | `{"password":"..."}` | `200 {"token":"<32 hex>"}`; `401` wrong password; `429` within 1 s of a wrong one; `409` login off |
+| POST | `/api/logout` | `{}` + token | forgets that token and closes every `/ws` (other dashboards reconnect) |
+
 ### Rulebook contract (Table 6)
 
 | Method | Path | Body | Result |

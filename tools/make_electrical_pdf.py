@@ -1549,7 +1549,7 @@ def build_story():
                     ["SW1 rating and the motors' stall current are unknown", "Nothing measured yet", "Read SW1's print; test T17; then set F1"],
                     ["S3 5V pin as a supply input", "Not tested. It did not feed the camera as an output", "Test T5 with USB unplugged"],
                     ["E-stop is a switch, not the mushroom-head button rule 1.2.1 asks for", "Team decision, 6 and 13 Nov 2026", "Organisers' approval in writing before inspection"],
-                    ["Dashboard access is not protected yet", "Software team", "Fix before motors are connected"]], [190, 190, a4w - 380]))
+                    ["Dashboard login added (13 Nov 2026), plain HTTP", "Keeps casual users out; not encrypted", "Set DASHBOARD_PASSWORD in src/s3/secrets.h"]], [190, 190, a4w - 380]))
     s.append(para("Revision history", H2))
     s.append(table([["Rev", "Date", "Change"], ["A", "2 Nov 2026", "First issue. Adds J2, sonar capacitors C11–C18 and the K1 re-latch check to the design in docs/03_electrical.md."],
                     ["B", "6 Nov 2026", "E-stop SW1 changed from the red mushroom button to a 2-pole ON-OFF switch, by team decision. Rule 1.2.1 marked NOT MET."],

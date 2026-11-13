@@ -128,9 +128,11 @@ cp src/audio/secrets.example.h src/audio/secrets.h
 ```
 
 Then edit each `secrets.h`: put the lab or arena network in `WIFI_STA_SSID` and
-`WIFI_STA_PASSWORD`. For the camera, also set `CAM_OTA_PASSWORD` (8 or more characters) so you can
-update it over Wi-Fi later. Without `secrets.h` the build still works but prints a warning, and the
-board falls back to the example values.
+`WIFI_STA_PASSWORD`. For the S3, also set `DASHBOARD_PASSWORD` (8 or more characters): it is the
+dashboard login, and while it is empty anyone on the network can drive the rover. For the camera,
+also set `CAM_OTA_PASSWORD` (8 or more characters) so you can update it over Wi-Fi later. Without
+`secrets.h` the build still works but prints a warning, and the board falls back to the example
+values.
 
 Never paste a real password into a document, a chat or a commit.
 
@@ -241,7 +243,7 @@ Configuration files you are expected to edit (code reads these; change values, n
 | `src/s3/config_network.h` | Host name, ports, bench access point on/off |
 | `src/cam/config_cam.h` | Camera pins, image settings, QR and motion thresholds, servo calibration |
 | `src/audio/config_audio.h` | Audio pins, sample rate, volume |
-| `src/*/secrets.h` | Wi-Fi names and passwords (never committed) |
+| `src/*/secrets.h` | Wi-Fi names and passwords, the dashboard password (never committed) |
 
 ## 9.6 How the S3 firmware works
 

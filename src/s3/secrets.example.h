@@ -10,3 +10,7 @@
 // Bench fallback access point (8..63 characters). Change before use.
 #define WIFI_AP_SSID "URRT-ROVER"
 #define WIFI_AP_PASSWORD "change-me-please"
+
+// Dashboard login (8 or more characters). Empty = no login: anyone on the
+// network can drive the rover. One password for the whole team.
+#define DASHBOARD_PASSWORD ""

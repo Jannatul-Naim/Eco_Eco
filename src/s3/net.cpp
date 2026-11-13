@@ -14,6 +14,11 @@
 #warning "src/s3/secrets.h missing: using secrets.example.h (bench AP only). Copy and edit it."
 #include "secrets.example.h"
 #endif
+#ifndef DASHBOARD_PASSWORD
+#define DASHBOARD_PASSWORD ""  // secrets.h from before the login existed: login off
+#endif
+
+const char* dashboardPassword() { return DASHBOARD_PASSWORD; }
 
 namespace {
 AsyncUDP g_udp;

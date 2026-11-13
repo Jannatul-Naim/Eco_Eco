@@ -20,5 +20,7 @@ struct AudioStatus {
 };
 
 void netBegin();
+// DASHBOARD_PASSWORD from secrets.h; empty means the dashboard has no login.
+const char* dashboardPassword();
 NetInfo netInfo();
 AudioStatus audioStatus(uint32_t nowMs);

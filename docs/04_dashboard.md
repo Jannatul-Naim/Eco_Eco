@@ -4,6 +4,12 @@ The dashboard is a single window in black and gold (`data/index.html`, `style.cs
 `app.js`, under 60 KB, no external libraries, works without internet). The S3 serves it from
 LittleFS, so on the arena network you open `http://<rover-ip>/` or `http://urrt-rover.local/`.
 
+**Login.** If the rover has a `DASHBOARD_PASSWORD`, a gold bar under the top bar asks for it. Until
+you log in the page shows no telemetry and every command is refused, but **E-STOP always works**.
+The page remembers the token for that rover; after the rover restarts, log in again. **LOG OUT**
+sits next to CONNECT. Typing in the password field does not trigger the Space/Esc E-stop keys, so
+use the E-STOP button while the field has focus.
+
 ## 4.1 Layout
 
 On a laptop or desktop (window at least 1100 × 600 px) everything sits in **one screen with no

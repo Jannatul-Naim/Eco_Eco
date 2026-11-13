@@ -90,6 +90,12 @@ Fixes made while completing the project:
 
 ## 8.2 Physically tested
 
+**Dashboard login (13 Nov 2026), on the S3 over Neonis.** Without a token, `/api/status`,
+`/api/drive`, `/api/estop/reset` and the `/ws` handshake all answered `401`; a made-up token also
+got `401`; `POST /api/estop` still answered `200`. A wrong password gave `401`, and a retry within
+1 s gave `429`. The new page asked for the password once and did not retry in a loop. The team
+then logged in with the real password in the browser: telemetry and controls came back.
+
 No stage has passed yet and no wiring exists. On 31 Oct 2026 the S3 firmware (`s3_main`) and
 the dashboard file system were **uploaded** to the team's board (esptool: hash verified). The
 serial monitor stayed blank. On 1 Nov the board turned out to be on its CH343 bridge port, where
@@ -176,5 +182,8 @@ Fill this in from the checklist:
   it in AUTO, so it is a possible later addition.
 - **Touch target and box smash** have no sensor or actuator support and are not claimed.
 - The camera stream allows **one viewer at a time**.
+- **The dashboard login is plain HTTP** (13 Nov 2026): password and token cross the Wi-Fi
+  unencrypted, so it keeps casual users out, not someone sniffing the network. It protects the S3
+  only: the camera board's stream and controls and the audio board are still open.
 - Talk-back audio needs the dashboard on `http://localhost` (browser secure-context rule).
 - The S3 bench access point must be **disabled for competition** (rule 1.3.1).

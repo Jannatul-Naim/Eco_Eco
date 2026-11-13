@@ -139,8 +139,10 @@ Leave J3, J4 and J5 unplugged, so the drivers and the servo buck are not connect
 
 ## Stage 3: Wi-Fi, dashboard and voltage sensing
 
-1. Join the `URRT-ROVER` network from the laptop and open `http://192.168.4.1/`. The link pill
-   should say `live` and Connection → Telemetry median should be close to 75 ms.
+1. Join the `URRT-ROVER` network from the laptop and open `http://192.168.4.1/`. If
+   `DASHBOARD_PASSWORD` is set in `src/s3/secrets.h`, log in with it first (the boot log prints
+   `dashboard login: on`). The link pill should say `live` and Connection → Telemetry median
+   should be close to 75 ms.
 2. (Arena or lab network) Fill in `WIFI_STA_SSID` / `WIFI_STA_PASSWORD` in `src/s3/secrets.h` and
    re-upload. The boot log prints `Wi-Fi STA <ssid> ip <address>`. Use the IP or
    `http://urrt-rover.local/`. Any computer on the same router works, including one on Ethernet.

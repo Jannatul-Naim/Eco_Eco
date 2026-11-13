@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 #include <AsyncTCP.h>
+#include <esp_system.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
 #include <math.h>
@@ -14,6 +15,7 @@
 #include "events.h"
 #include "net.h"
 #include "rover.h"
+#include "session_auth.h"
 
 namespace {
 AsyncWebServer g_server(HTTP_PORT);
@@ -31,6 +33,38 @@ uint32_t g_telemetrySeq = 0;
 uint32_t g_lastEventSeqSent = 0;
 volatile bool g_resendEvents = false;
 uint32_t g_lastWsErrorMs = 0;
+
+// Dashboard login. One shared password (DASHBOARD_PASSWORD in secrets.h);
+// POST /api/login returns a token, and every other /api/* call and the /ws
+// socket must carry it: "Authorization: Bearer <token>", or ?token= where a
+// header cannot be set (WebSocket, links). POST /api/estop never needs it:
+// anyone may stop the rover. This is plain HTTP, so it keeps casual users on
+// a shared network out; it does not stop someone sniffing the Wi-Fi.
+constexpr uint32_t kLoginRetryMs = 1000;  // after a wrong password
+auth::Sessions<4> g_sessions;             // AsyncTCP task only: no lock needed
+bool g_loginFailed = false;
+uint32_t g_lastLoginFailMs = 0;
+
+bool loginEnabled() { return dashboardPassword()[0] != '\0'; }
+
+String requestToken(AsyncWebServerRequest* req) {
+  if (req->hasHeader("Authorization")) {
+    const String& h = req->header("Authorization");
+    if (h.startsWith("Bearer ")) return h.substring(7);
+  }
+  if (req->hasParam("token")) return req->getParam("token")->value();
+  return String();
+}
+
+bool authorized(AsyncWebServerRequest* req) { return !loginEnabled() || g_sessions.valid(requestToken(req).c_str()); }
+
+bool openRoute(AsyncWebServerRequest* req) {
+  if (req->method() == HTTP_OPTIONS) return true;  // CORS preflight carries no token
+  const String& u = req->url();
+  if (u == "/ws") return false;
+  if (!u.startsWith("/api/")) return true;  // dashboard files hold no secrets
+  return u == "/api/estop" || u == "/api/login" || u == "/api/auth";
+}
 
 // HTTP handlers all run in the AsyncTCP task, one at a time.
 RoverSnapshot g_httpSnap;
@@ -370,7 +404,7 @@ const char kNoFsPage[] PROGMEM =
 void webBegin(bool filesystemOk) {
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   // The E-stop is never refused.
   g_server.addMiddleware([](AsyncWebServerRequest* req, ArMiddlewareNext next) {
@@ -379,9 +413,69 @@ void webBegin(bool filesystemOk) {
     }
     next();
   });
+  g_server.addMiddleware([](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+    if (openRoute(req) || authorized(req)) return next();
+    sendError(req, 401, "login required");
+  });
+  if (!loginEnabled()) {
+    g_events.add(EvLevel::Warn, "dashboard login OFF: set DASHBOARD_PASSWORD in src/s3/secrets.h");
+  }
 
   g_ws.onEvent(onWsEvent);
   g_server.addHandler(&g_ws);
+
+  g_server.on("/api/auth", HTTP_GET, [](AsyncWebServerRequest* req) {
+    JsonDocument doc;
+    doc["ok"] = true;
+    doc["login_required"] = loginEnabled();
+    doc["authorized"] = authorized(req);
+    sendJson(req, 200, doc);
+  });
+  g_server.on(
+      AsyncURIMatcher::exact("/api/login"), HTTP_POST,
+      [](AsyncWebServerRequest* req) {
+        if (!loginEnabled()) return sendError(req, 409, "login is off: DASHBOARD_PASSWORD is not set");
+        const uint32_t now = millis();
+        if (g_loginFailed && now - g_lastLoginFailMs < kLoginRetryMs) {
+          return sendError(req, 429, "wait a second, then try again");
+        }
+        JsonDocument body;
+        const char* raw = static_cast<const char*>(req->_tempObject);
+        if (!raw || deserializeJson(body, raw)) return sendError(req, 400, "body must be {\"password\":\"...\"}");
+        const String from = req->client()->remoteIP().toString();
+        if (!auth::matches(body["password"] | "", dashboardPassword())) {
+          g_loginFailed = true;
+          g_lastLoginFailMs = now;
+          g_events.add(EvLevel::Warn, "dashboard login refused from %s", from.c_str());
+          return sendError(req, 401, "wrong password");
+        }
+        uint8_t bytes[auth::kTokenBytes];
+        for (size_t i = 0; i < sizeof(bytes); i += 4) {
+          const uint32_t r = esp_random();  // hardware RNG; Wi-Fi is on, so it is truly random
+          memcpy(bytes + i, &r, 4);
+        }
+        char token[auth::kTokenHexLen + 1];
+        auth::tokenFromBytes(bytes, token);
+        g_sessions.add(token);
+        g_events.add(EvLevel::Info, "dashboard login from %s", from.c_str());
+        JsonDocument doc;
+        doc["ok"] = true;
+        doc["message"] = "logged in";
+        doc["token"] = token;
+        sendJson(req, 200, doc);
+      },
+      nullptr, collectBody);
+  g_server.on(
+      AsyncURIMatcher::exact("/api/logout"), HTTP_POST,
+      [](AsyncWebServerRequest* req) {
+        g_sessions.remove(requestToken(req).c_str());
+        g_ws.closeAll();  // other dashboards reconnect with their own tokens
+        JsonDocument doc;
+        doc["ok"] = true;
+        doc["message"] = "logged out";
+        sendJson(req, 200, doc);
+      },
+      nullptr, collectBody);
 
   g_server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* req) {
     if (!snapshotNow(&g_httpSnap)) return sendError(req, 503, "rover busy, retry");

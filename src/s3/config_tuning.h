@@ -32,8 +32,10 @@ constexpr uint8_t SONAR_SCHEDULE[] = {0, 1, 0, 2, 0, 3};
 constexpr int REAR_CLEARANCE_MM = 200;  // reverse blocked below this (or if stale/invalid)
 
 // ---- Autonomous: traverse ----------------------------------------------------
-constexpr float TRAVERSE_CRUISE_DUTY = 0.35f;
-constexpr float TRAVERSE_STEER_GAIN = 0.25f;    // max differential added by side sonars
+// 25GA 300 RPM motors on 85 mm wheels: about 0.33 m/s at 0.25 (no-load estimate,
+// not measured). Start here and tune on the floor (docs/06 stage 13).
+constexpr float TRAVERSE_CRUISE_DUTY = 0.25f;
+constexpr float TRAVERSE_STEER_GAIN = 0.18f;    // max differential added by side sonars
 constexpr int TRAVERSE_SIDE_CLEAR_MM = 250;     // side sonar closer than this -> steer away
 constexpr int TRAVERSE_FRONT_BLOCK_MM = 250;    // front-center closer than this -> BLOCKED
 constexpr uint32_t TRAVERSE_BLOCKED_WAIT_MS = 3000;  // wait for path to clear, then FAILED

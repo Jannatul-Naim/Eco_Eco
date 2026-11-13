@@ -243,6 +243,7 @@ void consolePrintBanner() {
   Serial.printf(" motor driver: %s | E-stop sense: %s | battery sense: %s\n",
                 MOTOR_DRIVER_NAME, ESTOP_FROM_MOTOR_BUS ? "motor bus (GPIO2)" : ESTOP_SENSE_FITTED ? "pole B (GPIO21)" : "NOT fitted",
                 BATTERY_SENSE_FITTED ? "fitted" : "not fitted");
+  Serial.printf(" dashboard login: %s\n", dashboardPassword()[0] ? "on" : "OFF (set DASHBOARD_PASSWORD in secrets.h)");
   Serial.printf(" sonars fitted: FC=%d FL=%d FR=%d REAR=%d\n", SONAR_FITTED[0], SONAR_FITTED[1], SONAR_FITTED[2],
                 SONAR_FITTED[3]);
   Serial.println(" motor outputs start DISABLED. Type 'help' for console commands.");

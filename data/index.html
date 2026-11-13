@@ -28,6 +28,13 @@
   <button id="estopBtn" class="estop" type="button" title="Software E-stop (Space / Esc / gamepad B-Circle). The E-stop switch on the rover is the real one.">E-STOP</button>
 </header>
 
+<form id="loginBar" class="login-bar" hidden>
+  <span class="login-title">Log in to drive the rover. E-STOP works without it.</span>
+  <input id="loginPass" type="password" autocomplete="current-password" placeholder="dashboard password" aria-label="Dashboard password">
+  <button id="loginBtn" class="btn small" type="submit">LOG IN</button>
+  <span id="loginMsg" class="login-msg" role="status"></span>
+</form>
+
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <main class="layout">
@@ -166,6 +173,7 @@
     <div class="host-row">
       <input id="hostInput" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="rover IP, e.g. 192.168.4.1" aria-label="Rover address">
       <button id="hostBtn" class="btn small" type="button">CONNECT</button>
+      <button id="logoutBtn" class="btn small" type="button" hidden>LOG OUT</button>
     </div>
     <dl class="grid">
       <div class="wide"><dt>Wi-Fi</dt><dd id="wifi">—</dd></div>

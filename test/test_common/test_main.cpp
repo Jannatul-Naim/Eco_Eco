@@ -3,6 +3,7 @@
 
 #include "ipv4.h"
 #include "rover_protocol.h"
+#include "session_auth.h"
 
 void setUp() {}
 void tearDown() {}
@@ -91,6 +92,48 @@ void test_pan_names_roundtrip_and_fail_to_hold() {
   TEST_ASSERT_TRUE(boardlink::parsePanState("bogus") == boardlink::PanState::Absent);
 }
 
+void test_auth_password_match() {
+  TEST_ASSERT_TRUE(auth::matches("correct horse", "correct horse"));
+  TEST_ASSERT_FALSE(auth::matches("correct hors", "correct horse"));
+  TEST_ASSERT_FALSE(auth::matches("correct horsee", "correct horse"));
+  TEST_ASSERT_FALSE(auth::matches("Correct horse", "correct horse"));
+  TEST_ASSERT_FALSE(auth::matches("", "correct horse"));
+  TEST_ASSERT_FALSE(auth::matches(nullptr, "correct horse"));
+  // An unset password never matches, not even an empty guess.
+  TEST_ASSERT_FALSE(auth::matches("", ""));
+  TEST_ASSERT_FALSE(auth::matches("anything", ""));
+}
+
+void test_auth_token_hex() {
+  const uint8_t bytes[auth::kTokenBytes] = {0x00, 0x01, 0x0f, 0x10, 0xab, 0xcd, 0xef, 0xff,
+                                            0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
+  char out[auth::kTokenHexLen + 1];
+  auth::tokenFromBytes(bytes, out);
+  TEST_ASSERT_EQUAL_STRING("00010f10abcdefff123456789abcdef0", out);
+}
+
+void test_auth_sessions() {
+  auth::Sessions<2> s;
+  const char* a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const char* b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const char* c = "cccccccccccccccccccccccccccccccc";
+  TEST_ASSERT_FALSE(s.valid(a));
+  TEST_ASSERT_FALSE(s.valid(""));
+  TEST_ASSERT_FALSE(s.valid(nullptr));
+  s.add(a);
+  s.add(b);
+  TEST_ASSERT_TRUE(s.valid(a));
+  TEST_ASSERT_TRUE(s.valid(b));
+  TEST_ASSERT_FALSE(s.valid("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));  // one short
+  s.add(c);  // pushes out the oldest
+  TEST_ASSERT_FALSE(s.valid(a));
+  TEST_ASSERT_TRUE(s.valid(b));
+  TEST_ASSERT_TRUE(s.valid(c));
+  s.remove(b);
+  TEST_ASSERT_FALSE(s.valid(b));
+  TEST_ASSERT_TRUE(s.valid(c));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_ipv4_strict_accepts_valid);
@@ -100,5 +143,8 @@ int main() {
   RUN_TEST(test_link_frame_roundtrip);
   RUN_TEST(test_link_rejects_garbage_and_overflow);
   RUN_TEST(test_pan_names_roundtrip_and_fail_to_hold);
+  RUN_TEST(test_auth_password_match);
+  RUN_TEST(test_auth_token_hex);
+  RUN_TEST(test_auth_sessions);
   return UNITY_END();
 }

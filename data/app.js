@@ -23,6 +23,14 @@ function storageSet(key, value) {
 let host = params.get('rover') || (servedByRover ? location.host : storageGet('roverHost', ''));
 const api = (path) => `http://${host}${path}`;
 
+// Dashboard login: the token from POST /api/login, remembered per rover. The
+// rover forgets tokens when it restarts, so expect to log in again then.
+const tokenKey = () => `token:${host}`;
+let token = host ? storageGet(tokenKey(), '') : '';
+const authHeaders = () => (token ? { Authorization: `Bearer ${token}` } : {});
+const withToken = (url) => (token ? `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}` : url);
+let connectGen = 0;
+
 // ---------------------------------------------------------------- state
 let tel = null;                // last {status, sensors}
 let ws = null;
@@ -134,10 +142,11 @@ async function post(path, body, quiet = false) {
   try {
     const r = await fetch(api(path), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body || {}),
       cache: 'no-store',
     });
+    if (r.status === 401) showLogin('Log in to send commands.');
     const j = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
     log(j.ok, j.ok ? j.message : j.error);
     if (!quiet) toast(j.ok ? j.message : j.error, !j.ok);
@@ -153,7 +162,7 @@ function estop(source) {
   // Both paths on purpose: whichever arrives first latches the E-stop.
   if (ws && ws.readyState === WebSocket.OPEN) ws.send('{"type":"estop"}');
   if (host) {
-    fetch(api('/api/estop'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    fetch(api('/api/estop'), { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: '{}' })
       .catch(() => {});
   }
   disarmGamepad(null);
@@ -163,7 +172,21 @@ function estop(source) {
 }
 
 // ---------------------------------------------------------------- link
-function connect() {
+// 'ok', 'login' (a password is needed) or 'down' (rover unreachable).
+async function checkAuth() {
+  try {
+    const r = await fetch(api('/api/auth'), { cache: 'no-store', headers: authHeaders() });
+    if (r.status === 404) return 'ok';  // firmware from before the login
+    const j = await r.json();
+    $('logoutBtn').hidden = !(j.login_required && j.authorized);
+    return j.login_required && !j.authorized ? 'login' : 'ok';
+  } catch {
+    return 'down';
+  }
+}
+
+async function connect() {
+  const gen = ++connectGen;
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
   if (!host) {
     put('linkPill', 'no rover address');
@@ -172,10 +195,21 @@ function connect() {
   }
   for (const id of ['apiStatus', 'apiSensors', 'apiEvents']) {
     const a = $(id);
-    a.href = api(a.textContent);
+    a.href = withToken(api(a.textContent));
   }
+  const auth = await checkAuth();
+  if (gen !== connectGen) return;  // a newer connect() took over
+  if (auth === 'down') {
+    scheduleReconnect();
+    return;
+  }
+  if (auth === 'login') {
+    showLogin();
+    return;
+  }
+  hideLogin();
   try {
-    ws = new WebSocket(`ws://${host}/ws`);
+    ws = new WebSocket(withToken(`ws://${host}/ws`));
   } catch {
     scheduleReconnect();
     return;
@@ -222,10 +256,14 @@ function startPolling() {
   if (pollTimer || !host) return;
   pollTimer = setInterval(async () => {
     try {
-      const [s, n] = await Promise.all([
-        fetch(api('/api/status'), { cache: 'no-store' }).then((r) => r.json()),
-        fetch(api('/api/sensors'), { cache: 'no-store' }).then((r) => r.json()),
-      ]);
+      const [rs, rn] = await Promise.all(['/api/status', '/api/sensors']
+        .map((p) => fetch(api(p), { cache: 'no-store', headers: authHeaders() })));
+      if (rs.status === 401 || rn.status === 401) {
+        stopPolling();
+        showLogin();
+        return;
+      }
+      const [s, n] = await Promise.all([rs.json(), rn.json()]);
       if (s.ok && n.ok) {
         lastTelemetryAt = performance.now();
         render(s, n);
@@ -237,6 +275,59 @@ function stopPolling() {
   clearInterval(pollTimer);
   pollTimer = null;
 }
+
+// ---------------------------------------------------------------- login
+function showLogin(msg = '') {
+  disarmGamepad('login needed');
+  clearManual();
+  put('loginMsg', msg);
+  $('loginBar').hidden = false;
+}
+function hideLogin() {
+  $('loginBar').hidden = true;
+  put('loginMsg', '');
+}
+
+$('loginBar').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const password = $('loginPass').value;
+  if (!password || !host) return;
+  put('loginMsg', 'checking…');
+  try {
+    const r = await fetch(api('/api/login'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+      cache: 'no-store',
+    });
+    const j = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
+    if (!j.ok) {
+      put('loginMsg', j.error || 'login refused', 'badc');
+      return;
+    }
+    token = j.token;
+    storageSet(tokenKey(), token);
+    $('loginPass').value = '';
+    $('loginPass').blur();  // Space must be the E-stop key again
+    hideLogin();
+    toast('logged in');
+    connect();
+  } catch (err) {
+    put('loginMsg', `rover unreachable (${err.message})`, 'badc');
+  }
+});
+
+$('logoutBtn').addEventListener('click', async () => {
+  $('logoutBtn').blur();
+  if (token) {
+    await fetch(api('/api/logout'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: '{}',
+    }).catch(() => {});
+  }
+  token = '';
+  storageSet(tokenKey(), '');
+  connect();
+});
 
 // ---------------------------------------------------------------- render
 const MISSIONS = ['traverse', 'proximity', 'qr_ping', 'motion'];
@@ -987,6 +1078,7 @@ $('hostBtn').addEventListener('click', () => {
   if (!v) return;
   host = v;
   storageSet('roverHost', host);
+  token = storageGet(tokenKey(), '');
   sonarBuilt = false;
   stopPolling();
   connect();
